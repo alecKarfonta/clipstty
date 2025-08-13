@@ -62,10 +62,10 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
 **Goal**: Establish project foundation and basic services
 
 ### Checklist
-- [ ] Repository setup
-  - [ ] Initialize git repository
-  - [ ] Set up CI/CD pipeline
-  - [ ] Configure linting and formatting
+- [x] Repository setup
+  - [x] Initialize git repository
+  - [x] Set up CI/CD pipeline
+  - [x] Configure linting and formatting
   - [ ] Plan code signing strategy
 - [ ] Application bootstrap
   - [ ] System tray integration
@@ -84,12 +84,12 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
   - [ ] Cloud service adapter
   - [ ] Streaming partial results
   - [ ] Final result processing
-- [ ] Clipboard service
-  - [ ] Read/write operations
+- [x] Clipboard service
+  - [x] Read/write operations
   - [ ] Initial ring buffer (in-memory)
   - [ ] Platform abstraction layer
-- [ ] Logging and monitoring
-  - [ ] Structured logging framework
+- [x] Logging and monitoring
+  - [x] Structured logging framework
   - [ ] Rotating log files
   - [ ] Basic crash handling
   - [ ] Performance metrics collection
@@ -103,7 +103,13 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
 ---
 
 Implement a method for selecting between different whisper models, or this new voxtral model
-@https://huggingface.co/mistralai/Voxtral-Mini-3B-2507 
+[`Voxtral-Mini-3B-2507`](https://huggingface.co/mistralai/Voxtral-Mini-3B-2507)
+
+### Next Steps (short-term)
+- Implement settings persistence (TOML) created on first run under user config directory
+- Enumerate audio devices via `cpal` and scaffold start/stop capture API
+- Expose basic model selection in `STTService` (return supported models; config-driven default)
+- Add minimal tray bootstrap (show/hide; no UI yet) and wire logging to file
 
 ## Phase 2 — MVP: Hotkey → Transcribe → Clipboard
 **Duration**: 2 weeks  

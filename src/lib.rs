@@ -13,6 +13,7 @@ pub use core::error::STTClippyError;
 pub use services::clipboard::ClipboardService;
 pub use services::hotkey::HotkeyService;
 pub use services::stt::STTService;
+use std::path::PathBuf;
 
 /// Application version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -108,19 +109,56 @@ pub fn init(config_path: Option<&str>, log_level: Option<&str>) -> Result<()> {
     tracing::info!("Application: {}", APP_NAME);
 
     // Load configuration
-    if let Some(path) = config_path {
-        tracing::info!("Loading configuration from: {}", path);
-        // TODO: Load configuration from file
-    } else {
-        tracing::info!("Using default configuration");
-        // TODO: Load default configuration
-    }
+    let resolved_path: PathBuf = match config_path {
+        Some(path) => PathBuf::from(path),
+        None => default_config_path()?,
+    };
+
+    let config = match std::fs::metadata(&resolved_path) {
+        Ok(_) => {
+            tracing::info!("Loading configuration from: {}", resolved_path.display());
+            Config::from_file(&resolved_path)?
+        }
+        Err(_) => {
+            tracing::info!(
+                "No configuration found. Creating default at: {}",
+                resolved_path.display()
+            );
+            let cfg = Config::new();
+            if let Some(parent) = resolved_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            cfg.save_to_file(&resolved_path)?;
+            cfg
+        }
+    };
+
+    let _ = config; // reserved for future use
 
     // Initialize platform-specific components
     platform::init()?;
 
     tracing::info!("STT Clippy initialization complete");
     Ok(())
+}
+
+fn default_config_path() -> Result<PathBuf> {
+    #[allow(unused_mut)]
+    let mut path: PathBuf;
+    #[cfg(not(target_os = "linux"))]
+    {
+        let dirs = directories::ProjectDirs::from("com", "sttclippy", "stt-clippy")
+            .ok_or_else(|| crate::core::error::ConfigError::FileNotFound("config dir".into()))?;
+        path = dirs.config_dir().to_path_buf();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let dirs = directories::BaseDirs::new()
+            .ok_or_else(|| crate::core::error::ConfigError::FileNotFound("base dir".into()))?;
+        let config_home = dirs.config_dir();
+        path = config_home.join("stt-clippy");
+    }
+    Ok(path.join(CONFIG_FILE))
 }
 
 /// Cleanup and shutdown the STT Clippy library
