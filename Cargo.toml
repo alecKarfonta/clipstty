@@ -1,0 +1,107 @@
+[package]
+name = "stt-clippy"
+version = "0.1.0"
+edition = "2021"
+authors = ["STT Clippy Contributors <contributors@stt-clippy.com>"]
+description = "Speech-to-Text with Smart Clipboard Management"
+license = "MIT"
+repository = "https://github.com/your-org/stt-clippy"
+keywords = ["speech-to-text", "clipboard", "desktop", "accessibility", "productivity"]
+categories = ["multimedia", "desktop-application", "accessibility"]
+readme = "README.md"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Audio processing
+cpal = "0.15"
+hound = "3.1"
+dasp = "0.11"
+
+# STT and VAD
+whisper-rs = "0.10"
+silero-vad = "0.1"
+
+# Clipboard management
+clipboard = "0.5"
+arboard = "3.2"
+
+# Database
+rusqlite = { version = "0.29", features = ["bundled"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono"] }
+
+# Platform-specific
+#[cfg(target_os = "linux")]
+x11rb = "0.10"
+#[cfg(target_os = "linux")]
+wayland-client = "0.31"
+
+#[cfg(target_os = "macos")]
+cocoa = "0.25"
+#[cfg(target_os = "macos")]
+core-foundation = "0.9"
+
+#[cfg(target_os = "windows")]
+winapi = { version = "0.3", features = ["winuser", "wincon"] }
+
+# UI framework (Tauri)
+tauri = { version = "1.5", features = ["system-tray", "global-shortcut", "notification"] }
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+base64 = "0.21"
+hex = "0.4"
+regex = "1.0"
+lazy_static = "1.4"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.11"
+tempfile = "3.0"
+assert_fs = "1.0"
+
+[features]
+default = ["local-stt"]
+local-stt = ["whisper-rs"]
+cloud-stt = []
+gui = ["tauri"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[[bin]]
+name = "stt-clippy"
+path = "src/main.rs"
+
+[lib]
+name = "stt_clippy"
+path = "src/lib.rs"
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+[workspace]
+members = [
+    "crates/*",
+]
+
+# Build configuration
+[build-dependencies]
+tauri-build = "1.5"
