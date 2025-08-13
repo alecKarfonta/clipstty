@@ -41,7 +41,7 @@ pub struct Config {
 }
 
 /// Audio configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AudioConfig {
     /// Audio sample rate
     #[serde(default = "default_sample_rate")]
@@ -69,7 +69,7 @@ pub struct AudioConfig {
 }
 
 /// STT configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct STTConfig {
     /// STT backend to use
     #[serde(default = "default_stt_backend")]
@@ -101,7 +101,7 @@ pub struct STTConfig {
 }
 
 /// Clipboard configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClipboardConfig {
     /// Maximum number of clipboard history items
     #[serde(default = "default_clipboard_capacity")]
@@ -121,7 +121,7 @@ pub struct ClipboardConfig {
 }
 
 /// Hotkey configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HotkeyConfig {
     /// Primary STT activation hotkey
     #[serde(default = "default_primary_hotkey")]
@@ -141,7 +141,7 @@ pub struct HotkeyConfig {
 }
 
 /// Paste configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PasteConfig {
     /// Paste mode
     #[serde(default = "default_paste_mode")]
@@ -161,7 +161,7 @@ pub struct PasteConfig {
 }
 
 /// Privacy configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PrivacyConfig {
     /// Data retention period (e.g., "30d", "1y")
     #[serde(default = "default_data_retention")]
@@ -185,7 +185,7 @@ pub struct PrivacyConfig {
 }
 
 /// UI configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UIConfig {
     /// Show system tray icon
     #[serde(default = "default_show_tray")]
@@ -209,20 +209,22 @@ pub struct UIConfig {
 }
 
 /// Paste mode enumeration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum PasteMode {
     /// Copy to clipboard only
     Clipboard,
     /// Paste at cursor only
     Paste,
     /// Both copy and paste
+    #[default]
     Both,
 }
 
 /// Fallback method enumeration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum FallbackMethod {
     /// Use clipboard only
+    #[default]
     Clipboard,
     /// Show manual paste instructions
     Manual,

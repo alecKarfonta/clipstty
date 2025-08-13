@@ -27,8 +27,8 @@ hound = "3.1"
 dasp = "0.11"
 
 # STT and VAD
-whisper-rs = "0.10"
-silero-vad = "0.1"
+whisper-rs = { version = "0.10", optional = true }
+silero_vad = { version = "0.1", optional = true }
 
 # Clipboard management
 clipboard = "0.5"
@@ -45,15 +45,15 @@ x11rb = "0.10"
 wayland-client = "0.31"
 
 #[cfg(target_os = "macos")]
-cocoa = "0.25"
+cocoa = { version = "0.25", optional = true }
 #[cfg(target_os = "macos")]
-core-foundation = "0.9"
+core-foundation = { version = "0.9", optional = true }
 
 #[cfg(target_os = "windows")]
-winapi = { version = "0.3", features = ["winuser", "wincon"] }
+winapi = { version = "0.3", features = ["winuser", "wincon"], optional = true }
 
 # UI framework (Tauri)
-tauri = { version = "1.5", features = ["system-tray", "global-shortcut", "notification"] }
+tauri = { version = "1.5", features = ["system-tray", "global-shortcut", "notification"], optional = true }
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
@@ -97,11 +97,6 @@ path = "src/lib.rs"
 name = "integration"
 path = "tests/integration.rs"
 
-[workspace]
-members = [
-    "crates/*",
-]
-
 # Build configuration
 [build-dependencies]
-tauri-build = "1.5"
+tauri-build = { version = "1.5", optional = true }

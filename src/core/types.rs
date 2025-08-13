@@ -376,7 +376,7 @@ impl ClipboardItem {
 
     /// Check if item has a specific tag
     pub fn has_tag(&self, tag: &str) -> bool {
-        self.tags.contains(&tag)
+        self.tags.contains(&tag.to_string())
     }
 
     /// Toggle pinned status

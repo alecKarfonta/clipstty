@@ -91,10 +91,8 @@ pub type Result<T> = std::result::Result<T, crate::core::error::STTClippyError>;
 /// # Examples
 ///
 /// ```rust
-/// use stt_clippy;
-///
-/// fn main() -> stt_clippy::Result<()> {
-///     stt_clippy::init(None, None)?;
+/// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Initialize the library
 ///     // ... rest of application
 ///     Ok(())
 /// }
