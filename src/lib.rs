@@ -4,15 +4,15 @@
 //! including speech-to-text processing, clipboard management, and platform integration.
 
 pub mod core;
-pub mod services;
 pub mod platform;
+pub mod services;
 pub mod ui;
 
 pub use core::config::Config;
 pub use core::error::STTClippyError;
-pub use services::stt::STTService;
 pub use services::clipboard::ClipboardService;
 pub use services::hotkey::HotkeyService;
+pub use services::stt::STTService;
 
 /// Application version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -67,8 +67,8 @@ pub const SUPPORTED_STT_MODELS: &[&str] = &["tiny", "base", "small", "medium", "
 
 /// Supported languages (ISO 639-1 codes)
 pub const SUPPORTED_LANGUAGES: &[&str] = &[
-    "en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh",
-    "ar", "hi", "nl", "sv", "da", "no", "fi", "pl", "tr", "uk"
+    "en", "es", "fr", "de", "it", "pt", "ru", "ja", "ko", "zh", "ar", "hi", "nl", "sv", "da", "no",
+    "fi", "pl", "tr", "uk",
 ];
 
 /// Application result type
@@ -101,7 +101,7 @@ pub fn init(config_path: Option<&str>, log_level: Option<&str>) -> Result<()> {
     // Initialize logging
     let log_level = log_level.unwrap_or("info");
     tracing_subscriber::fmt()
-        .with_env_filter(format!("stt_clippy={}", log_level))
+        .with_env_filter(format!("stt_clippy={log_level}"))
         .init();
 
     tracing::info!("Initializing STT Clippy v{}", VERSION);

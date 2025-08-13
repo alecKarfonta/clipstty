@@ -1,6 +1,6 @@
 //! Paste service for injecting text at the cursor position.
 
-use crate::{Result, core::types::*};
+use crate::Result;
 
 /// Paste service for injecting text at cursor position
 pub struct PasteService {
@@ -15,7 +15,7 @@ impl PasteService {
     }
 
     /// Inject text at cursor position
-    pub fn inject_text(&self, text: &str) -> Result<()> {
+    pub fn inject_text(&self, _text: &str) -> Result<()> {
         // TODO: Implement text injection
         Ok(())
     }

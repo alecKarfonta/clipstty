@@ -102,6 +102,9 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
 
 ---
 
+Implement a method for selecting between different whisper models, or this new voxtral model
+@https://huggingface.co/mistralai/Voxtral-Mini-3B-2507 
+
 ## Phase 2 — MVP: Hotkey → Transcribe → Clipboard
 **Duration**: 2 weeks  
 **Goal**: Basic end-to-end functionality

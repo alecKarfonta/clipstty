@@ -1,6 +1,6 @@
 //! Audio service for capturing and processing audio input.
 
-use crate::{Result, core::types::*};
+use crate::{core::types::*, Result};
 
 /// Audio service for managing audio capture and processing
 pub struct AudioService {

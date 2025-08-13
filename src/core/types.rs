@@ -1,7 +1,7 @@
 //! Common types and data structures for STT Clippy.
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Unique identifier for clipboard items
@@ -18,22 +18,22 @@ pub type AudioBuffer = Vec<AudioSample>;
 pub struct STTResult {
     /// Transcribed text
     pub text: String,
-    
+
     /// Confidence score (0.0 to 1.0)
     pub confidence: f32,
-    
+
     /// Language detected (ISO 639-1 code)
     pub language: Option<String>,
-    
+
     /// Timestamp when transcription completed
     pub timestamp: DateTime<Utc>,
-    
+
     /// Processing time in milliseconds
     pub processing_time_ms: u64,
-    
+
     /// Model used for transcription
     pub model: String,
-    
+
     /// Backend used for transcription
     pub backend: String,
 }
@@ -43,13 +43,13 @@ pub struct STTResult {
 pub struct PartialSTTResult {
     /// Partial transcribed text
     pub text: String,
-    
+
     /// Confidence score (0.0 to 1.0)
     pub confidence: f32,
-    
+
     /// Is this the final result?
     pub is_final: bool,
-    
+
     /// Timestamp when partial result was generated
     pub timestamp: DateTime<Utc>,
 }
@@ -59,31 +59,31 @@ pub struct PartialSTTResult {
 pub struct ClipboardItem {
     /// Unique identifier
     pub id: ClipboardItemId,
-    
+
     /// Content of the clipboard item
     pub content: ClipboardContent,
-    
+
     /// Source of the clipboard item
     pub source: ClipboardSource,
-    
+
     /// Timestamp when item was created
     pub created_at: DateTime<Utc>,
-    
+
     /// Timestamp when item was last accessed
     pub accessed_at: DateTime<Utc>,
-    
+
     /// Number of times this item was accessed
     pub access_count: u64,
-    
+
     /// Tags for categorization
     pub tags: Vec<String>,
-    
+
     /// Is this item pinned?
     pub pinned: bool,
-    
+
     /// Application context when created
     pub app_context: Option<AppContext>,
-    
+
     /// Size in bytes
     pub size_bytes: usize,
 }
@@ -93,19 +93,19 @@ pub struct ClipboardItem {
 pub struct ClipboardContent {
     /// Text content (if any)
     pub text: Option<String>,
-    
+
     /// HTML content (if any)
     pub html: Option<String>,
-    
+
     /// Rich text content (if any)
     pub rtf: Option<String>,
-    
+
     /// Image data (if any)
     pub image: Option<ImageData>,
-    
+
     /// File paths (if any)
     pub files: Option<Vec<String>>,
-    
+
     /// Custom formats
     pub custom: std::collections::HashMap<String, Vec<u8>>,
 }
@@ -115,11 +115,11 @@ pub struct ClipboardContent {
 pub struct ImageData {
     /// Image format (PNG, JPEG, etc.)
     pub format: String,
-    
+
     /// Image dimensions
     pub width: u32,
     pub height: u32,
-    
+
     /// Image data
     pub data: Vec<u8>,
 }
@@ -132,22 +132,22 @@ pub enum ClipboardSource {
         /// STT result that created this item
         stt_result: STTResult,
     },
-    
+
     /// Manually copied by user
     Manual,
-    
+
     /// Imported from file
     Import {
         /// Source file path
         file_path: String,
     },
-    
+
     /// Synced from another device
     Sync {
         /// Source device identifier
         device_id: String,
     },
-    
+
     /// Other source
     Other(String),
 }
@@ -157,16 +157,16 @@ pub enum ClipboardSource {
 pub struct AppContext {
     /// Application name
     pub name: String,
-    
+
     /// Application process ID
     pub pid: Option<u32>,
-    
+
     /// Window title (if applicable)
     pub window_title: Option<String>,
-    
+
     /// Application bundle identifier (macOS)
     pub bundle_id: Option<String>,
-    
+
     /// Application executable path
     pub executable_path: Option<String>,
 }
@@ -176,16 +176,16 @@ pub struct AppContext {
 pub struct Hotkey {
     /// Control key modifier
     pub ctrl: bool,
-    
+
     /// Alt key modifier
     pub alt: bool,
-    
+
     /// Shift key modifier
     pub shift: bool,
-    
+
     /// Windows/Command key modifier
     pub meta: bool,
-    
+
     /// Main key
     pub key: String,
 }
@@ -195,19 +195,19 @@ pub struct Hotkey {
 pub struct AudioDevice {
     /// Device name
     pub name: String,
-    
+
     /// Device identifier
     pub id: String,
-    
+
     /// Supported sample rates
     pub sample_rates: Vec<u32>,
-    
+
     /// Supported channel counts
     pub channels: Vec<u16>,
-    
+
     /// Is this the default device?
     pub is_default: bool,
-    
+
     /// Device type
     pub device_type: AudioDeviceType,
 }
@@ -217,10 +217,10 @@ pub struct AudioDevice {
 pub enum AudioDeviceType {
     /// Input device (microphone)
     Input,
-    
+
     /// Output device (speakers)
     Output,
-    
+
     /// Both input and output
     Duplex,
 }
@@ -230,13 +230,13 @@ pub enum AudioDeviceType {
 pub struct VADResult {
     /// Is voice detected?
     pub voice_detected: bool,
-    
+
     /// Confidence score (0.0 to 1.0)
     pub confidence: f32,
-    
+
     /// Timestamp when detection occurred
     pub timestamp: DateTime<Utc>,
-    
+
     /// Duration of voice activity in milliseconds
     pub duration_ms: u64,
 }
@@ -246,19 +246,19 @@ pub struct VADResult {
 pub struct AudioConfig {
     /// Sample rate in Hz
     pub sample_rate: u32,
-    
+
     /// Number of channels
     pub channels: u16,
-    
+
     /// Buffer size in samples
     pub buffer_size: usize,
-    
+
     /// Enable noise reduction
     pub noise_reduction: bool,
-    
+
     /// Enable echo cancellation
     pub echo_cancellation: bool,
-    
+
     /// Enable automatic gain control
     pub auto_gain_control: bool,
 }
@@ -268,25 +268,25 @@ pub struct AudioConfig {
 pub struct STTModel {
     /// Model name
     pub name: String,
-    
+
     /// Model size (tiny, base, small, medium, large)
     pub size: String,
-    
+
     /// Model file path
     pub file_path: String,
-    
+
     /// Model file size in bytes
     pub file_size: u64,
-    
+
     /// Supported languages
     pub languages: Vec<String>,
-    
+
     /// Model version
     pub version: String,
-    
+
     /// Is model downloaded?
     pub downloaded: bool,
-    
+
     /// Download progress (0.0 to 1.0)
     pub download_progress: Option<f32>,
 }
@@ -296,19 +296,19 @@ pub struct STTModel {
 pub struct PerformanceMetrics {
     /// CPU usage percentage
     pub cpu_usage: f32,
-    
+
     /// Memory usage in bytes
     pub memory_usage: u64,
-    
+
     /// Audio latency in milliseconds
     pub audio_latency_ms: u64,
-    
+
     /// STT processing time in milliseconds
     pub stt_processing_time_ms: u64,
-    
+
     /// Total end-to-end latency in milliseconds
     pub total_latency_ms: u64,
-    
+
     /// Timestamp when metrics were collected
     pub timestamp: DateTime<Utc>,
 }
@@ -318,22 +318,22 @@ pub struct PerformanceMetrics {
 pub struct AppStats {
     /// Total number of transcriptions
     pub total_transcriptions: u64,
-    
+
     /// Total transcription time in seconds
     pub total_transcription_time: u64,
-    
+
     /// Average transcription accuracy
     pub average_accuracy: f32,
-    
+
     /// Total clipboard items created
     pub total_clipboard_items: u64,
-    
+
     /// Most used applications
     pub most_used_apps: Vec<(String, u64)>,
-    
+
     /// Most used languages
     pub most_used_languages: Vec<(String, u64)>,
-    
+
     /// Application uptime in seconds
     pub uptime_seconds: u64,
 }
@@ -405,22 +405,22 @@ impl ClipboardContent {
 
     /// Check if content is text-only
     pub fn is_text_only(&self) -> bool {
-        self.text.is_some() && 
-        self.html.is_none() && 
-        self.rtf.is_none() && 
-        self.image.is_none() && 
-        self.files.is_none() && 
-        self.custom.is_empty()
+        self.text.is_some()
+            && self.html.is_none()
+            && self.rtf.is_none()
+            && self.image.is_none()
+            && self.files.is_none()
+            && self.custom.is_empty()
     }
 
     /// Check if content is empty
     pub fn is_empty(&self) -> bool {
-        self.text.is_none() && 
-        self.html.is_none() && 
-        self.rtf.is_none() && 
-        self.image.is_none() && 
-        self.files.is_none() && 
-        self.custom.is_empty()
+        self.text.is_none()
+            && self.html.is_none()
+            && self.rtf.is_none()
+            && self.image.is_none()
+            && self.files.is_none()
+            && self.custom.is_empty()
     }
 }
 
@@ -459,20 +459,31 @@ impl Hotkey {
         self.meta = true;
         self
     }
+}
 
-    /// Convert to string representation
-    pub fn to_string(&self) -> String {
+impl std::fmt::Display for Hotkey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut parts = Vec::new();
-        
-        if self.ctrl { parts.push("Ctrl"); }
-        if self.alt { parts.push("Alt"); }
-        if self.shift { parts.push("Shift"); }
-        if self.meta { parts.push("Meta"); }
-        
-        parts.push(&self.key);
-        parts.join("+")
-    }
 
+        if self.ctrl {
+            parts.push("Ctrl");
+        }
+        if self.alt {
+            parts.push("Alt");
+        }
+        if self.shift {
+            parts.push("Shift");
+        }
+        if self.meta {
+            parts.push("Meta");
+        }
+
+        parts.push(&self.key);
+        write!(f, "{}", parts.join("+"))
+    }
+}
+
+impl Hotkey {
     /// Parse from string representation
     pub fn from_string(s: &str) -> Result<Self, String> {
         let parts: Vec<&str> = s.split('+').collect();
@@ -481,17 +492,17 @@ impl Hotkey {
         }
 
         let mut hotkey = Hotkey::new(parts.last().unwrap().to_string());
-        
-        for part in &parts[..parts.len()-1] {
+
+        for part in &parts[..parts.len() - 1] {
             match part.to_lowercase().as_str() {
                 "ctrl" => hotkey.ctrl = true,
                 "alt" => hotkey.alt = true,
                 "shift" => hotkey.shift = true,
                 "meta" => hotkey.meta = true,
-                _ => return Err(format!("Unknown modifier: {}", part)),
+                _ => return Err(format!("Unknown modifier: {part}")),
             }
         }
-        
+
         Ok(hotkey)
     }
 }
@@ -566,9 +577,9 @@ mod tests {
                 "local".to_string(),
             ),
         };
-        
+
         let item = ClipboardItem::new(content, source);
-        
+
         assert_eq!(item.access_count, 0);
         assert!(!item.pinned);
         assert!(item.tags.is_empty());
@@ -576,10 +587,8 @@ mod tests {
 
     #[test]
     fn test_hotkey_creation() {
-        let hotkey = Hotkey::new("S".to_string())
-            .with_ctrl()
-            .with_alt();
-        
+        let hotkey = Hotkey::new("S".to_string()).with_ctrl().with_alt();
+
         assert!(hotkey.ctrl);
         assert!(hotkey.alt);
         assert!(!hotkey.shift);
@@ -589,13 +598,11 @@ mod tests {
 
     #[test]
     fn test_hotkey_string_conversion() {
-        let hotkey = Hotkey::new("S".to_string())
-            .with_ctrl()
-            .with_alt();
-        
+        let hotkey = Hotkey::new("S".to_string()).with_ctrl().with_alt();
+
         let string_repr = hotkey.to_string();
         assert_eq!(string_repr, "Ctrl+Alt+S");
-        
+
         let parsed = Hotkey::from_string(&string_repr).unwrap();
         assert_eq!(parsed, hotkey);
     }
@@ -608,14 +615,14 @@ mod tests {
             "base".to_string(),
             "local".to_string(),
         );
-        
+
         let low_conf = STTResult::new(
             "Hello".to_string(),
             0.5,
             "base".to_string(),
             "local".to_string(),
         );
-        
+
         assert!(high_conf.is_high_confidence());
         assert!(low_conf.is_low_confidence());
     }
@@ -623,7 +630,7 @@ mod tests {
     #[test]
     fn test_clipboard_content_methods() {
         let content = ClipboardContent::new_text("Test".to_string());
-        
+
         assert!(content.is_text_only());
         assert!(!content.is_empty());
         assert_eq!(content.get_text(), Some("Test"));

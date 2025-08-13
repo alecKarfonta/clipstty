@@ -27,7 +27,7 @@ impl SystemTray {
     }
 
     /// Update tray icon
-    pub fn update_icon(&self, icon_name: &str) -> Result<()> {
+    pub fn update_icon(&self, _icon_name: &str) -> Result<()> {
         // TODO: Implement icon update
         Ok(())
     }

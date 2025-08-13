@@ -1,7 +1,5 @@
 //! Common platform functionality shared across different operating systems.
 
-use crate::Result;
-
 /// Common platform utilities
 pub struct PlatformUtils;
 

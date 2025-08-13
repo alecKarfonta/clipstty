@@ -1,6 +1,6 @@
 //! Speech-to-Text service for processing audio and generating transcriptions.
 
-use crate::{Result, core::types::*};
+use crate::{core::types::*, Result};
 
 /// STT service for managing speech-to-text processing
 pub struct STTService {
@@ -15,7 +15,7 @@ impl STTService {
     }
 
     /// Process audio and generate transcription
-    pub fn transcribe(&mut self, audio: &[AudioSample]) -> Result<STTResult> {
+    pub fn transcribe(&mut self, _audio: &[AudioSample]) -> Result<STTResult> {
         // TODO: Implement transcription
         Ok(STTResult::new(
             "Placeholder transcription".to_string(),
