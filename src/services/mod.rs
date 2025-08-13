@@ -5,9 +5,11 @@ pub mod clipboard;
 pub mod hotkey;
 pub mod paste;
 pub mod stt;
+pub mod vad;
 
 pub use audio::AudioService;
 pub use clipboard::ClipboardService;
 pub use hotkey::HotkeyService;
 pub use paste::PasteService;
 pub use stt::STTService;
+pub use vad::{VADService, VADMode};

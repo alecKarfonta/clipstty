@@ -1,6 +1,7 @@
 //! System tray integration for STT Clippy.
 
 use crate::Result;
+use tracing::info;
 
 /// System tray interface
 pub struct SystemTray {
@@ -16,19 +17,19 @@ impl SystemTray {
 
     /// Show the system tray
     pub fn show(&self) -> Result<()> {
-        // TODO: Implement show tray
+        info!("Tray show called");
         Ok(())
     }
 
     /// Hide the system tray
     pub fn hide(&self) -> Result<()> {
-        // TODO: Implement hide tray
+        info!("Tray hide called");
         Ok(())
     }
 
     /// Update tray icon
     pub fn update_icon(&self, _icon_name: &str) -> Result<()> {
-        // TODO: Implement icon update
+        info!(icon = %_icon_name, "Tray update_icon called");
         Ok(())
     }
 }

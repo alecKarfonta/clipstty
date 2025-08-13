@@ -31,7 +31,7 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
   - [ ] Review OS integration capabilities
 - [ ] Select default STT backend
   - [ ] Test Faster-Whisper performance on target hardware
-  - [ ] Define cloud abstraction interface
+  - [x] Define cloud abstraction interface
   - [ ] Measure model loading times
 - [ ] Validate audio pipeline
   - [ ] Test audio capture on target OS
@@ -74,13 +74,13 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
 - [ ] Audio capture module
   - [ ] Linux: PipeWire/PulseAudio support
   - [ ] Cross-platform audio abstractions
-  - [ ] Sample rate and format handling
+  - [x] Sample rate and format handling
 - [ ] Voice Activity Detection
   - [ ] Implement Silero VAD
   - [ ] Push-to-talk and toggle modes
   - [ ] Configurable sensitivity settings
-- [ ] STT interface abstraction
-  - [ ] Local processing adapter
+- [x] STT interface abstraction
+  - [x] Local processing adapter
   - [ ] Cloud service adapter
   - [ ] Streaming partial results
   - [ ] Final result processing
@@ -90,7 +90,7 @@ STT Clippy is a desktop application that allows users to activate speech-to-text
   - [ ] Platform abstraction layer
 - [x] Logging and monitoring
   - [x] Structured logging framework
-  - [ ] Rotating log files
+  - [x] Rotating log files
   - [ ] Basic crash handling
   - [ ] Performance metrics collection
 
@@ -107,8 +107,8 @@ Implement a method for selecting between different whisper models, or this new v
 
 ### Next Steps (short-term)
 - Implement settings persistence (TOML) created on first run under user config directory
-- Enumerate audio devices via `cpal` and scaffold start/stop capture API
-- Expose basic model selection in `STTService` (return supported models; config-driven default)
+- [x] Enumerate audio devices via `cpal` and scaffold start/stop capture API
+- [x] Expose basic model selection in `STTService` (return supported models; config-driven default)
 - Add minimal tray bootstrap (show/hide; no UI yet) and wire logging to file
 
 ## Phase 2 — MVP: Hotkey → Transcribe → Clipboard

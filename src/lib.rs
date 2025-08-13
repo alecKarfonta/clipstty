@@ -14,6 +14,9 @@ pub use services::clipboard::ClipboardService;
 pub use services::hotkey::HotkeyService;
 pub use services::stt::STTService;
 use std::path::PathBuf;
+use tracing_subscriber::fmt::time::UtcTime;
+use tracing_subscriber::prelude::*;
+use once_cell::sync::OnceCell;
 
 /// Application version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -99,10 +102,27 @@ pub type Result<T> = std::result::Result<T, crate::core::error::STTClippyError>;
 /// }
 /// ```
 pub fn init(config_path: Option<&str>, log_level: Option<&str>) -> Result<()> {
-    // Initialize logging
+    // Initialize logging with rotating file and stdout
     let log_level = log_level.unwrap_or("info");
-    tracing_subscriber::fmt()
-        .with_env_filter(format!("stt_clippy={log_level}"))
+    let appender_dir = default_log_dir()?;
+    std::fs::create_dir_all(&appender_dir)?;
+    let file_appender = tracing_appender::rolling::daily(&appender_dir, LOG_FILE);
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let stdout_layer = tracing_subscriber::fmt::layer()
+        .with_timer(UtcTime::rfc_3339())
+        .with_target(false)
+        .with_ansi(true);
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_timer(UtcTime::rfc_3339())
+        .with_target(false)
+        .with_ansi(false)
+        .with_writer(non_blocking);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::new(format!("stt_clippy={log_level}")))
+        .with(stdout_layer)
+        .with(file_layer)
         .init();
 
     tracing::info!("Initializing STT Clippy v{}", VERSION);
@@ -133,7 +153,7 @@ pub fn init(config_path: Option<&str>, log_level: Option<&str>) -> Result<()> {
         }
     };
 
-    let _ = config; // reserved for future use
+    set_global_config(config);
 
     // Initialize platform-specific components
     platform::init()?;
@@ -159,6 +179,35 @@ fn default_config_path() -> Result<PathBuf> {
         path = config_home.join("stt-clippy");
     }
     Ok(path.join(CONFIG_FILE))
+}
+
+fn default_log_dir() -> Result<PathBuf> {
+    #[allow(unused_mut)]
+    let mut path: PathBuf;
+    #[cfg(not(target_os = "linux"))]
+    {
+        let dirs = directories::ProjectDirs::from("com", "sttclippy", "stt-clippy")
+            .ok_or_else(|| crate::core::error::ConfigError::FileNotFound("log dir".into()))?;
+        path = dirs.data_dir().to_path_buf();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let dirs = directories::BaseDirs::new()
+            .ok_or_else(|| crate::core::error::ConfigError::FileNotFound("base dir".into()))?;
+        let data_home = dirs.data_dir();
+        path = data_home.join("stt-clippy");
+    }
+    Ok(path)
+}
+
+static GLOBAL_CONFIG: OnceCell<core::config::Config> = OnceCell::new();
+
+pub fn get_config() -> &'static core::config::Config {
+    GLOBAL_CONFIG.get().expect("config not initialized")
+}
+
+fn set_global_config(cfg: core::config::Config) {
+    let _ = GLOBAL_CONFIG.set(cfg);
 }
 
 /// Cleanup and shutdown the STT Clippy library

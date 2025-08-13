@@ -66,6 +66,10 @@ pub struct AudioConfig {
     /// Audio device name (empty for default)
     #[serde(default)]
     pub device_name: String,
+
+    /// Activation mode for capture start/stop behavior
+    #[serde(default = "default_activation_mode")]
+    pub activation_mode: ActivationMode,
 }
 
 /// STT configuration
@@ -230,6 +234,16 @@ pub enum FallbackMethod {
     Manual,
     /// Show error notification
     Error,
+}
+
+/// Activation mode for STT capture
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub enum ActivationMode {
+    /// Hold hotkey to capture
+    #[default]
+    PushToTalk,
+    /// Press once to start, press again to stop
+    Toggle,
 }
 
 impl Config {
@@ -406,6 +420,10 @@ fn default_notification_duration() -> u64 {
     5
 }
 
+fn default_activation_mode() -> ActivationMode {
+    ActivationMode::PushToTalk
+}
+
 impl AudioConfig {
     pub fn new() -> Self {
         Self {
@@ -415,6 +433,7 @@ impl AudioConfig {
             vad_timeout: DEFAULT_VAD_TIMEOUT,
             noise_reduction: true,
             device_name: String::new(),
+            activation_mode: default_activation_mode(),
         }
     }
 }
