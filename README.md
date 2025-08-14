@@ -6,13 +6,13 @@ STT Clippy is a desktop application that allows you to activate speech-to-text f
 
 ## ✨ Features
 
-- ** Global Hotkey Activation**: Trigger STT from any application with customizable hotkeys
-- ** Speech-to-Text**: Real-time transcription with local and cloud options
-- ** Smart Output**: Paste at cursor and/or copy to clipboard
-- ** Clipboard History**: Multi-clipboard buffer with search and quick access
-- ** Privacy First**: Local processing by default, no data sent to cloud unless explicitly enabled
-- ** Cross-Platform**: Support for Linux, macOS, and Windows
-- ** High Performance**: Optimized for low latency and minimal resource usage
+- **Global Hotkey Activation**: Trigger STT from any application with customizable hotkeys
+- **Speech-to-Text**: Real-time transcription with local and cloud options
+- **Smart Output**: Paste at cursor and/or copy to clipboard
+- **Clipboard History**: Multi-clipboard buffer with search and quick access
+- **Privacy First**: Local processing by default, no data sent to cloud unless explicitly enabled
+- **Cross-Platform**: Support for Linux, macOS, and Windows
+- **High Performance**: Optimized for low latency and minimal resource usage
 
 ## 🚀 Quick Start
 
