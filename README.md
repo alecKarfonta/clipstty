@@ -25,31 +25,15 @@ STT Clippy is a desktop application that allows you to activate speech-to-text f
 
 ### Installation
 
-#### Linux
+Note: Prebuilt installers are not published yet. Build and run from source for now.
+
+#### Build from source (all platforms)
 ```bash
-# Download the latest AppImage
-wget https://github.com/your-org/stt-clippy/releases/latest/download/stt-clippy-linux-x86_64.AppImage
-
-# Make it executable
-chmod +x stt-clippy-linux-x86_64.AppImage
-
-# Run the application
-./stt-clippy-linux-x86_64.AppImage
+# Prerequisites: Rust toolchain (https://rustup.rs/)
+git clone <this repo URL>
+cd clipstty
+cargo build
 ```
-
-#### macOS
-```bash
-# Download the latest DMG
-curl -L -o stt-clippy-macos.dmg https://github.com/your-org/stt-clippy/releases/latest/download/stt-clippy-macos.dmg
-
-# Mount and install
-hdiutil attach stt-clippy-macos.dmg
-cp -R "/Volumes/STT Clippy/STT Clippy.app" /Applications/
-hdiutil detach "/Volumes/STT Clippy"
-```
-
-#### Windows
-Download the latest MSI installer from the [releases page](https://github.com/your-org/stt-clippy/releases) and run it.
 
 ### First Run
 
@@ -60,6 +44,49 @@ Download the latest MSI installer from the [releases page](https://github.com/yo
    - Clipboard access for clipboard management
 3. **Configure Hotkeys**: Default is `Ctrl+Alt+S` for STT activation
 4. **Test**: Press your hotkey and speak - the transcribed text should appear in your clipboard!
+
+### Local model setup (required for local STT)
+
+The local backend requires a Whisper model file and an environment variable pointing to it.
+
+```bash
+# Example: download the base English model (adjust path as desired)
+mkdir -p ~/models/whisper
+curl -L -o ~/models/whisper/ggml-base.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin?download=true
+
+# Point the app to your model
+export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
+
+# Optional: tune performance
+export WHISPER_THREADS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)
+# macOS: enable Metal GPU acceleration (default on macOS)
+export WHISPER_USE_GPU=1
+```
+
+### Run the CLI prototype (copies transcripts to clipboard)
+
+```bash
+export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
+cargo run --bin stt_to_clipboard
+```
+
+This continuously listens for speech, transcribes detected segments, and copies the result to your clipboard.
+
+### Run the main app (hotkey-activated, creates a config file on first run)
+
+```bash
+export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
+cargo run --bin stt-clippy --features local-stt
+```
+
+On first run, a default `stt-clippy.toml` will be created in your user config directory. Edit it to adjust audio, hotkeys, and output behavior.
+
+### Environment variables
+
+- `WHISPER_MODEL_PATH` (required for local backend): absolute path to a Whisper model `.bin` file
+- `WHISPER_THREADS` (optional): number of CPU threads to use
+- `WHISPER_USE_GPU` (optional, macOS default = on): `1` to enable GPU, `0` to force CPU
 
 ## 🎯 Usage
 
