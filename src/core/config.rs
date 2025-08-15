@@ -59,6 +59,10 @@ pub struct AudioConfig {
     #[serde(default = "default_vad_timeout")]
     pub vad_timeout: u64,
 
+    /// Enable or disable VAD entirely
+    #[serde(default = "default_enable_vad")]
+    pub enable_vad: bool,
+
     /// Enable noise reduction
     #[serde(default = "default_noise_reduction")]
     pub noise_reduction: bool,
@@ -84,7 +88,7 @@ pub struct STTConfig {
     pub model_size: String,
 
     /// Language for STT (empty for auto-detection)
-    #[serde(default)]
+    #[serde(default = "default_language")]
     pub language: String,
 
     /// Enable punctuation
@@ -134,6 +138,18 @@ pub struct HotkeyConfig {
     /// History palette hotkey
     #[serde(default = "default_history_hotkey")]
     pub history_palette: String,
+
+    /// Toggle VAD processing on/off
+    #[serde(default = "default_toggle_vad_hotkey")]
+    pub toggle_vad: String,
+
+    /// Toggle instant output mode (paste to cursor)
+    #[serde(default = "default_toggle_instant_output_hotkey")]
+    pub toggle_instant_output: String,
+
+    /// Toggle narration mode (continuous dictation)
+    #[serde(default = "default_toggle_narration_hotkey")]
+    pub toggle_narration: String,
 
     /// Quick access hotkeys for recent clips
     #[serde(default = "default_quick_access_hotkeys")]
@@ -337,6 +353,9 @@ fn default_vad_sensitivity() -> f32 {
 fn default_vad_timeout() -> u64 {
     DEFAULT_VAD_TIMEOUT
 }
+fn default_enable_vad() -> bool {
+    true
+}
 fn default_noise_reduction() -> bool {
     true
 }
@@ -351,6 +370,9 @@ fn default_enable_punctuation() -> bool {
 }
 fn default_enable_capitalization() -> bool {
     true
+}
+fn default_language() -> String {
+    "en".to_string()
 }
 fn default_clipboard_capacity() -> usize {
     DEFAULT_CLIPBOARD_CAPACITY
@@ -369,6 +391,18 @@ fn default_primary_hotkey() -> String {
 }
 fn default_history_hotkey() -> String {
     DEFAULT_HISTORY_HOTKEY.to_string()
+}
+fn default_toggle_vad_hotkey() -> String {
+    // Ctrl+Alt+V
+    "Ctrl+Alt+V".to_string()
+}
+fn default_toggle_instant_output_hotkey() -> String {
+    // Ctrl+Alt+P
+    "Ctrl+Alt+P".to_string()
+}
+fn default_toggle_narration_hotkey() -> String {
+    // Ctrl+Alt+N
+    "Ctrl+Alt+N".to_string()
 }
 fn default_quick_access_hotkeys() -> Vec<String> {
     vec![
@@ -431,6 +465,7 @@ impl AudioConfig {
             channels: 1,
             vad_sensitivity: DEFAULT_VAD_SENSITIVITY,
             vad_timeout: DEFAULT_VAD_TIMEOUT,
+            enable_vad: true,
             noise_reduction: true,
             device_name: String::new(),
             activation_mode: default_activation_mode(),
@@ -443,7 +478,7 @@ impl STTConfig {
         Self {
             backend: "local".to_string(),
             model_size: DEFAULT_STT_MODEL.to_string(),
-            language: String::new(),
+            language: "en".to_string(),
             enable_punctuation: true,
             enable_capitalization: true,
             api_key: String::new(),
@@ -468,6 +503,9 @@ impl HotkeyConfig {
         Self {
             primary: DEFAULT_HOTKEY.to_string(),
             history_palette: DEFAULT_HISTORY_HOTKEY.to_string(),
+            toggle_vad: default_toggle_vad_hotkey(),
+            toggle_instant_output: default_toggle_instant_output_hotkey(),
+            toggle_narration: default_toggle_narration_hotkey(),
             quick_access: vec![
                 "Alt+1".to_string(),
                 "Alt+2".to_string(),

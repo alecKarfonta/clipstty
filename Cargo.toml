@@ -30,12 +30,14 @@ hound = "3.1"
 dasp = "0.11"
 
 # STT and VAD
-whisper-rs = { version = "0.10", optional = true }
+# Enable Metal backend on macOS for GPU acceleration
+whisper-rs = { version = "0.14", optional = true, features = ["metal"] }
 silero_vad = { version = "0.1", optional = true }
 
 # Clipboard management
 clipboard = "0.5"
 arboard = "3.2"
+enigo = "0.2"
 
 # Database
 rusqlite = { version = "0.29", features = ["bundled"] }
