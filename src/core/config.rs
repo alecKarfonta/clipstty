@@ -74,6 +74,22 @@ pub struct AudioConfig {
     /// Activation mode for capture start/stop behavior
     #[serde(default = "default_activation_mode")]
     pub activation_mode: ActivationMode,
+
+    /// Enable energy level monitoring
+    #[serde(default = "default_enable_energy_monitoring")]
+    pub enable_energy_monitoring: bool,
+
+    /// High energy threshold for logging (0.0 to 1.0)
+    #[serde(default = "default_energy_threshold_high")]
+    pub energy_threshold_high: f32,
+
+    /// Low energy threshold for logging (0.0 to 1.0)
+    #[serde(default = "default_energy_threshold_low")]
+    pub energy_threshold_low: f32,
+
+    /// Energy monitoring log cooldown in milliseconds
+    #[serde(default = "default_energy_log_cooldown")]
+    pub energy_log_cooldown: u64,
 }
 
 /// STT configuration
@@ -147,9 +163,14 @@ pub struct HotkeyConfig {
     #[serde(default = "default_toggle_instant_output_hotkey")]
     pub toggle_instant_output: String,
 
+    #[cfg(feature = "narration")]
     /// Toggle narration mode (continuous dictation)
     #[serde(default = "default_toggle_narration_hotkey")]
     pub toggle_narration: String,
+
+    /// Toggle energy monitoring hotkey
+    #[serde(default = "default_toggle_energy_monitoring_hotkey")]
+    pub toggle_energy_monitoring: String,
 
     /// Quick access hotkeys for recent clips
     #[serde(default = "default_quick_access_hotkeys")]
@@ -400,9 +421,16 @@ fn default_toggle_instant_output_hotkey() -> String {
     // Ctrl+Alt+P
     "Ctrl+Alt+P".to_string()
 }
+
+#[cfg(feature = "narration")]
 fn default_toggle_narration_hotkey() -> String {
     // Ctrl+Alt+N
     "Ctrl+Alt+N".to_string()
+}
+
+fn default_toggle_energy_monitoring_hotkey() -> String {
+    // Ctrl+Alt+E
+    "Ctrl+Alt+E".to_string()
 }
 fn default_quick_access_hotkeys() -> Vec<String> {
     vec![
@@ -458,6 +486,22 @@ fn default_activation_mode() -> ActivationMode {
     ActivationMode::PushToTalk
 }
 
+fn default_enable_energy_monitoring() -> bool {
+    true
+}
+
+fn default_energy_threshold_high() -> f32 {
+    1e-3
+}
+
+fn default_energy_threshold_low() -> f32 {
+    1e-4
+}
+
+fn default_energy_log_cooldown() -> u64 {
+    100
+}
+
 impl AudioConfig {
     pub fn new() -> Self {
         Self {
@@ -469,6 +513,10 @@ impl AudioConfig {
             noise_reduction: true,
             device_name: String::new(),
             activation_mode: default_activation_mode(),
+            enable_energy_monitoring: default_enable_energy_monitoring(),
+            energy_threshold_high: default_energy_threshold_high(),
+            energy_threshold_low: default_energy_threshold_low(),
+            energy_log_cooldown: default_energy_log_cooldown(),
         }
     }
 }
@@ -505,7 +553,9 @@ impl HotkeyConfig {
             history_palette: DEFAULT_HISTORY_HOTKEY.to_string(),
             toggle_vad: default_toggle_vad_hotkey(),
             toggle_instant_output: default_toggle_instant_output_hotkey(),
+            #[cfg(feature = "narration")]
             toggle_narration: default_toggle_narration_hotkey(),
+            toggle_energy_monitoring: default_toggle_energy_monitoring_hotkey(),
             quick_access: vec![
                 "Alt+1".to_string(),
                 "Alt+2".to_string(),

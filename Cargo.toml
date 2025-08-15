@@ -80,6 +80,7 @@ default = ["local-stt"]
 local-stt = ["whisper-rs"]
 cloud-stt = []
 gui = ["tauri"]
+narration = []
 
 [profile.release]
 opt-level = 3

@@ -213,7 +213,7 @@ pub struct AudioDevice {
 }
 
 /// Audio device type
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AudioDeviceType {
     /// Input device (microphone)
     Input,

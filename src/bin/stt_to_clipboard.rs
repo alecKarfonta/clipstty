@@ -10,13 +10,180 @@ use tracing_subscriber::prelude::*;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup tracing to stdout with colors
     init_logging();
+    
+    // Print usage statement
+    println!("╭─────────────────────────────────────────────────────────────────────────╮");
+    println!("│                        STT to Clipboard Runner                         │");
+    println!("╰─────────────────────────────────────────────────────────────────────────╯");
+    println!();
+    println!("USAGE:");
+    println!("  WHISPER_MODEL_PATH=<path> [OPTIONS] ./stt_to_clipboard");
+    println!();
+    println!("REQUIRED:");
+    println!("  WHISPER_MODEL_PATH      Path to Whisper model file (.bin format)");
+    println!();
+    println!("OPTIONAL:");
+    println!("  ENERGY_THRESHOLD_HIGH   Speech detection threshold (default: 0.001)");
+    println!("  ENERGY_THRESHOLD_LOW    Silence detection threshold (default: 0.0001)");
+    println!("  ENERGY_LOG_COOLDOWN_MS  Energy log cooldown in ms (default: 100)");
+    println!();
+    println!("EXAMPLES:");
+    println!("  # Basic usage with local model");
+    println!("  WHISPER_MODEL_PATH=./models/ggml-base.en.bin ./stt_to_clipboard");
+    println!();
+    println!("  # With custom energy thresholds");
+    println!("  WHISPER_MODEL_PATH=./models/ggml-small.bin \\");
+    println!("    ENERGY_THRESHOLD_HIGH=0.002 \\");
+    println!("    ENERGY_THRESHOLD_LOW=0.0002 ./stt_to_clipboard");
+    println!();
+    println!("MODELS:");
+    println!("  Download from: https://huggingface.co/ggerganov/whisper.cpp");
+    println!("  Supported: tiny (~40MB), base (~150MB), small (~500MB),");
+    println!("             medium (~1.5GB), large (~3GB)");
+    println!();
+    println!("NOTE: Larger models provide better accuracy but slower processing");
+    println!("─────────────────────────────────────────────────────────────────────────");
+    println!();
+    
+    // Log system information
+    info!(target: "runner", "╭─ System Information ───────────────────────────────");
+    info!(target: "runner", "│ Platform:     {} {}", std::env::consts::OS, std::env::consts::ARCH);
+    info!(target: "runner", "│ Start time:   {}", chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"));
+    if let Ok(cwd) = std::env::current_dir() {
+        info!(target: "runner", "│ Working dir:  {}", cwd.display());
+    }
+    if let Ok(user) = std::env::var("USER") {
+        info!(target: "runner", "│ User:         {}", user);
+    }
+    if let Ok(hostname) = std::env::var("HOSTNAME") {
+        info!(target: "runner", "│ Hostname:     {}", hostname);
+    }
+    
+    // Add additional system info
+    info!(target: "runner", "│ Binary:       {}", env!("CARGO_PKG_NAME"));
+    info!(target: "runner", "│ Version:      {}", env!("CARGO_PKG_VERSION"));
+    if let Ok(shell) = std::env::var("SHELL") {
+        info!(target: "runner", "│ Shell:        {}", shell);
+    }
+    info!(target: "runner", "╰─────────────────────────────────────────────────────");
+    println!();
+    
     // Ensure model path is provided for local backend
     let model_path = std::env::var("WHISPER_MODEL_PATH")?;
     println!("Using WHISPER_MODEL_PATH={}", model_path);
     log_kv("stt_to_clipboard", "main", "WHISPER_MODEL_PATH", &model_path);
+    
+    // Get model file information and attempt size classification
+    if let Ok(metadata) = std::fs::metadata(&model_path) {
+        let file_size_mb = metadata.len() as f64 / (1024.0 * 1024.0);
+        let file_size_gb = file_size_mb / 1024.0;
+        
+        // Determine likely model size based on file size
+        let estimated_model = if file_size_mb < 80.0 {
+            "tiny (~40MB)"
+        } else if file_size_mb < 300.0 {
+            "base (~150MB)"
+        } else if file_size_mb < 800.0 {
+            "small (~500MB)"
+        } else if file_size_mb < 2500.0 {
+            "medium (~1.5GB)"
+        } else {
+            "large (~3GB)"
+        };
+        
+        info!(target: "runner", "╭─ Model Information ─────────────────────────────────");
+        if file_size_gb >= 1.0 {
+            info!(target: "runner", "│ File size: {:.2} GB", file_size_gb);
+        } else {
+            info!(target: "runner", "│ File size: {:.1} MB", file_size_mb);
+        }
+        info!(target: "runner", "│ Estimated model: {}", estimated_model);
+        
+        // Try to determine model type from filename
+        if let Some(file_name) = std::path::Path::new(&model_path).file_name() {
+            if let Some(name_str) = file_name.to_str() {
+                info!(target: "runner", "│ File name: {}", name_str);
+                
+                // Extract language if present in filename
+                if name_str.contains(".en.") {
+                    info!(target: "runner", "│ Language: English-only model detected");
+                } else if name_str.contains("multilingual") || !name_str.contains(".en") {
+                    info!(target: "runner", "│ Language: Multilingual model detected");
+                }
+                
+                // Extract quantization if present
+                if name_str.contains("q4") {
+                    info!(target: "runner", "│ Quantization: 4-bit (faster, slightly lower quality)");
+                } else if name_str.contains("q8") {
+                    info!(target: "runner", "│ Quantization: 8-bit (balanced)");
+                } else if name_str.contains("f16") {
+                    info!(target: "runner", "│ Quantization: 16-bit float (high quality)");
+                } else if name_str.contains("f32") {
+                    info!(target: "runner", "│ Quantization: 32-bit float (highest quality)");
+                }
+            }
+        }
+        info!(target: "runner", "╰─────────────────────────────────────────────────────");
+    } else {
+        error!(target: "runner", "Failed to read model file metadata: {}", model_path);
+    }
+
+    // Log all configuration parameters
+    let energy_threshold_high = std::env::var("ENERGY_THRESHOLD_HIGH")
+        .unwrap_or_else(|_| "0.001".to_string())
+        .parse::<f32>()
+        .unwrap_or(1e-3_f32);
+    let energy_threshold_low = std::env::var("ENERGY_THRESHOLD_LOW")
+        .unwrap_or_else(|_| "0.0001".to_string())
+        .parse::<f32>()
+        .unwrap_or(1e-4_f32);
+    let energy_log_cooldown = std::env::var("ENERGY_LOG_COOLDOWN_MS")
+        .unwrap_or_else(|_| "100".to_string())
+        .parse::<u64>()
+        .unwrap_or(100);
+    
+    // Display configuration in organized sections
+    info!(target: "runner", "╭─ Configuration ─────────────────────────────────────");
+    info!(target: "runner", "│");
+    info!(target: "runner", "│ ENERGY DETECTION:");
+    info!(target: "runner", "│   High threshold: {:.6} (speech detection)", energy_threshold_high);
+    info!(target: "runner", "│   Low threshold:  {:.6} (silence detection)", energy_threshold_low);
+    info!(target: "runner", "│   Log cooldown:   {}ms", energy_log_cooldown);
+    info!(target: "runner", "│");
+    info!(target: "runner", "│ AUDIO PROCESSING:");
+    info!(target: "runner", "│   Window size:    60s (sliding buffer)");
+    info!(target: "runner", "│   Poll interval:  80ms (main loop)");
+    info!(target: "runner", "│   Frame size:     60ms (energy computation)");
+    info!(target: "runner", "│");
+    info!(target: "runner", "│ VOICE ACTIVITY DETECTION:");
+    info!(target: "runner", "│   Hangover:       600ms (silence before end)");
+    info!(target: "runner", "│   Min speech:     100ms (minimum utterance)");
+    info!(target: "runner", "│   Segment threshold: 0.0001 (hardcoded)");
+    info!(target: "runner", "│");
+    info!(target: "runner", "│ COMMAND HANDLING:");
+    info!(target: "runner", "│   Command cooldown: 1500ms (duplicate prevention)");
+    info!(target: "runner", "│   TTS quiet period: 3000ms (feedback prevention)");
+    info!(target: "runner", "│");
+    info!(target: "runner", "╰─────────────────────────────────────────────────────");
+    println!();
 
     // Capture audio continuously with simple segment window
+    info!(target: "runner", "[stt_to_clipboard].main initializing audio service");
     let mut audio_service = AudioService::new()?;
+    info!(target: "runner", "[stt_to_clipboard].main audio service initialized");
+    
+    // Get and log available audio devices
+    if let Ok(devices) = audio_service.get_devices() {
+        info!(target: "runner", "[stt_to_clipboard].main available audio devices:");
+        for device in devices {
+            if device.device_type == stt_clippy::core::types::AudioDeviceType::Input {
+                let default_marker = if device.is_default { " (default)" } else { "" };
+                info!(target: "runner", "  - Input: {}{}", device.name, default_marker);
+                info!(target: "runner", "    Sample rates: {:?}", device.sample_rates);
+                info!(target: "runner", "    Channels: {:?}", device.channels);
+            }
+        }
+    }
     let captured: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
     let captured_ref = captured.clone();
     let sample_rate_holder: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
@@ -34,7 +201,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "[stt_to_clipboard].main started audio capture");
 
     let mut stt = STTService::new()?;
+    info!(target: "runner", "[stt_to_clipboard].main STT service initialized");
+    
+    // Log STT service configuration
+    info!(target: "runner", "╭─ STT Service Configuration ─────────────────────────");
+    info!(target: "runner", "│ Backend:        local (whisper-rs)");
+    info!(target: "runner", "│ Model path:     {}", model_path);
+    info!(target: "runner", "│ Language:       auto-detect");
+    info!(target: "runner", "│ Punctuation:    enabled");
+    info!(target: "runner", "│ Capitalization: enabled");
+    info!(target: "runner", "│ Input format:   16kHz mono PCM");
+    info!(target: "runner", "│ Output format:  UTF-8 text");
+    info!(target: "runner", "╰─────────────────────────────────────────────────────");
+    
     let mut clipboard = ClipboardService::new()?;
+    info!(target: "runner", "[stt_to_clipboard].main clipboard service initialized");
     let mut instant_output: bool = false;
     let mut narration_enabled: bool = false; // not used for continuous injection in this runner
     // Cooldown to prevent duplicate command triggers back-to-back
@@ -51,17 +232,61 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let poll_ms: u64 = 80; // slightly faster polling
     let frame_ms: usize = 60; // energy computed over last ~60ms
     let mut last_log = Instant::now();
-    // Simple VAD-like gating
-    // Raise threshold so silence drops below it and can finalize segments
-    let energy_threshold: f32 = 1.0e-4;
+    
+    // Simple VAD-like gating parameters
+    let energy_threshold: f32 = 1.0e-4; // Hardcoded threshold for segment detection
     let hangover_ms: u64 = 600; // a bit longer silence to finalize
     let min_speech_ms: u64 = 100; // allow short single-word utterances
+    
+    info!(target: "runner", "[stt_to_clipboard].main VAD parameters:");
+    info!(target: "runner", "  - Energy threshold (segment): {:.6}", energy_threshold);
+    info!(target: "runner", "  - Hangover: {}ms", hangover_ms);
+    info!(target: "runner", "  - Min speech: {}ms", min_speech_ms);
+    
+    info!(target: "runner", "[stt_to_clipboard].main initialization complete - ready to process audio");
+    
+    // Performance characteristics summary
+    info!(target: "runner", "╭─ Performance Characteristics ───────────────────────");
+    info!(target: "runner", "│ Audio buffer:       {}s sliding window", window_ms / 1000);
+    info!(target: "runner", "│ Processing latency: ~{}ms (main loop)", poll_ms);
+    info!(target: "runner", "│ VAD response time:  {}ms (silence detection)", hangover_ms);
+    info!(target: "runner", "│ Min utterance:      {}ms (shortest speech)", min_speech_ms);
+    info!(target: "runner", "│ Command cooldown:   {}ms (duplicate prevention)", command_cooldown.as_millis());
+    info!(target: "runner", "│ TTS quiet period:   {}ms (feedback prevention)", 3000);
+    info!(target: "runner", "│ Expected RTF:       0.1-0.3x (real-time factor)");
+    info!(target: "runner", "╰─────────────────────────────────────────────────────");
+    
+    println!("=== Ready to capture and transcribe audio ===");
+    println!("Speak clearly to begin transcription...");
+    println!();
+    println!("Voice Commands:");
+    println!("  • 'enable vad' / 'disable vad' - Toggle voice activity detection");
+    println!("  • 'increase sensitivity' / 'decrease sensitivity' - Adjust VAD sensitivity");
+    println!("  • 'toggle instant output' - Switch between clipboard and direct paste");
+    println!("  • 'enable narration' / 'disable narration' - Toggle continuous dictation mode");
+    println!();
+    
     let mut voice_active: bool = false;
     let mut last_voice_instant: Option<Instant> = None;
     let mut segment_first_instant: Option<Instant> = None;
     // Narration helpers
     let mut narration_state = NarrationState::new();
     let mut last_narration_check = Instant::now();
+    
+    // Energy monitoring state tracking
+    let mut last_energy_log = Instant::now();
+    let energy_log_cooldown_duration = Duration::from_millis(energy_log_cooldown);
+    
+    // Track previous energy state to only log threshold crossings
+    let mut was_above_high_threshold = false;
+    let mut was_below_low_threshold = false;
+    
+    info!(target: "runner", "[stt_to_clipboard].main starting main processing loop");
+    info!(target: "runner", "[stt_to_clipboard].main voice commands available:");
+    info!(target: "runner", "  - 'enable vad' / 'disable vad' - Toggle voice activity detection");
+    info!(target: "runner", "  - 'increase sensitivity' / 'decrease sensitivity' - Adjust VAD sensitivity");
+    info!(target: "runner", "  - 'toggle instant output' - Switch between clipboard and direct paste");
+    info!(target: "runner", "  - 'enable narration' / 'disable narration' - Toggle continuous dictation mode");
     loop {
         std::thread::sleep(Duration::from_millis(poll_ms));
 
@@ -71,6 +296,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let sr = sample_rate_holder.lock().ok().and_then(|g| *g).unwrap_or(16000);
             (buf, sr)
         };
+        
+        // Log sample rate on first detection
+        //if last_log.elapsed() > Duration::from_secs(5) && !audio_raw.is_empty() {
+        //    //info!(target: "runner", "[stt_to_clipboard].main detected audio sample rate: {}Hz", input_sr);
+        //    last_log = Instant::now();
+        //}
         if audio_raw.is_empty() {
             if last_log.elapsed() > Duration::from_secs(2) {
                 debug!(target: "runner", "[stt_to_clipboard].main waiting for audio...");
@@ -89,7 +320,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
 
         // resample to 16k
-        let audio = if input_sr == 16000 { tail } else { resample_linear(&tail, input_sr, 16000) };
+        let audio = if input_sr == 16000 { 
+            tail 
+        } else { 
+            //info!(target: "runner", "[stt_to_clipboard].main resampling audio from {}Hz to 16000Hz", input_sr);
+            resample_linear(&tail, input_sr, 16000) 
+        };
 
         // Honor quiet period after a command or TTS
         let now = Instant::now();
@@ -158,8 +394,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let slice = &audio[start..];
             slice.iter().map(|s| s * s).sum::<f32>() / (slice.len() as f32)
         };
-        log_kv("stt_to_clipboard", "main", "energy", &format!("{:.6}", energy));
+        
+        // Only log energy when it crosses thresholds (similar to main app behavior)
         let now = Instant::now();
+        if now.duration_since(last_energy_log) > energy_log_cooldown_duration {
+            let currently_above_high = energy >= energy_threshold_high;
+            let currently_below_low = energy <= energy_threshold_low;
+            
+            // Log only when crossing thresholds
+            if currently_above_high && !was_above_high_threshold {
+                log_kv("stt_to_clipboard", "main", "energy", &format!("{:.6} > threshold {:.6} Speech detected", energy, energy_threshold_high));
+                last_energy_log = now;
+            } else if currently_below_low && !was_below_low_threshold {
+                log_kv("stt_to_clipboard", "main", "energy", &format!("{:.6} < threshold {:.6} Silence detected", energy, energy_threshold_low));
+                last_energy_log = now;
+            }
+            
+            // Update state tracking
+            was_above_high_threshold = currently_above_high;
+            was_below_low_threshold = currently_below_low;
+        }
+        
         if energy >= energy_threshold {
             last_voice_instant = Some(now);
             if !voice_active {
@@ -201,7 +456,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let audio_s = (seg_audio.len() as f64) / 16000.0_f64;
                                 let wall_s = wall.as_secs_f64();
                                 let rtf = if audio_s > 0.0 { wall_s / audio_s } else { 0.0 };
-                                info!(target: "runner", "[stt_to_clipboard].main transcribed len={} text=\"{}\" audio_s={:.3} wall_s={:.3} rtf={:.3}", result.text.len(), result.text, audio_s, wall_s, rtf);
+                                info!(
+                                    target: "runner",
+                                    "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m",
+                                    result.text.len(),
+                                    result.text,
+                                    audio_s,
+                                    wall_s,
+                                    rtf
+                                );
                                 // Command recognition: intercept voice commands
                                 if let Some(cmd) = parse_voice_command(&result.text) {
                                     let now = Instant::now();
