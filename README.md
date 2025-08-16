@@ -45,17 +45,23 @@ cargo build
 3. **Configure Hotkeys**: Default is `Ctrl+Alt+S` for STT activation
 4. **Test**: Press your hotkey and speak - the transcribed text should appear in your clipboard!
 
-### Local model setup (required for local STT)
+### Local model setup (optional for local STT)
 
-The local backend requires a Whisper model file and an environment variable pointing to it.
+The local backend uses a Whisper model file. By default, it looks for `ggml-large-v3-turbo-q8_0.bin` in the current directory. You can override this with the `WHISPER_MODEL_PATH` environment variable.
 
 ```bash
+# Option 1: Use the default model (place in current directory)
+# Download the default large-v3-turbo model
+curl -L -o ggml-large-v3-turbo-q8_0.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true
+
+# Option 2: Use a custom model with environment variable
 # Example: download the base English model (adjust path as desired)
 mkdir -p ~/models/whisper
 curl -L -o ~/models/whisper/ggml-base.en.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin?download=true
 
-# Point the app to your model
+# Point the app to your custom model
 export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
 
 # Optional: tune performance
@@ -67,6 +73,10 @@ export WHISPER_USE_GPU=1
 ### Run the CLI prototype (copies transcripts to clipboard)
 
 ```bash
+# With default model (ggml-large-v3-turbo-q8_0.bin in current directory)
+cargo run --bin stt_to_clipboard
+
+# Or with custom model
 export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
 cargo run --bin stt_to_clipboard
 ```
@@ -76,6 +86,10 @@ This continuously listens for speech, transcribes detected segments, and copies 
 ### Run the main app (hotkey-activated, creates a config file on first run)
 
 ```bash
+# With default model (ggml-large-v3-turbo-q8_0.bin in current directory)
+cargo run --bin stt-clippy --features local-stt
+
+# Or with custom model
 export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
 cargo run --bin stt-clippy --features local-stt
 ```
@@ -84,7 +98,7 @@ On first run, a default `stt-clippy.toml` will be created in your user config di
 
 ### Environment variables
 
-- `WHISPER_MODEL_PATH` (required for local backend): absolute path to a Whisper model `.bin` file
+- `WHISPER_MODEL_PATH` (optional): path to a Whisper model `.bin` file (default: `ggml-large-v3-turbo-q8_0.bin`)
 - `WHISPER_THREADS` (optional): number of CPU threads to use
 - `WHISPER_USE_GPU` (optional, macOS default = on): `1` to enable GPU, `0` to force CPU
 

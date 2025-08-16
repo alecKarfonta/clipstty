@@ -29,11 +29,8 @@ impl LocalWhisperBackend {
         const C_VAL: &str = "\x1b[32m"; // green
         const C_RESET: &str = "\x1b[0m";
 
-        let model_path = std::env::var("WHISPER_MODEL_PATH").map_err(|_| {
-            crate::core::error::STTError::ModelNotFound(
-                "Environment variable WHISPER_MODEL_PATH not set".to_string(),
-            )
-        })?;
+        let model_path = std::env::var("WHISPER_MODEL_PATH")
+            .unwrap_or_else(|_| "ggml-large-v3-turbo-q8_0.bin".to_string());
         let model_path = model_path.trim().to_string();
         if model_path.is_empty() {
             return Err(crate::core::error::STTError::ModelNotFound(
