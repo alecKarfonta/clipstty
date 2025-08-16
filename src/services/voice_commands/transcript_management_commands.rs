@@ -23,15 +23,15 @@ impl VoiceCommand for SearchTranscriptsCommand {
         // Mock search results
         let results = if query.is_empty() || query == "recent transcripts" {
             vec![
-                "Meeting Notes - 2025-01-16 14:30 (95% confidence)",
-                "Interview Recording - 2025-01-15 10:15 (87% confidence)", 
-                "Lecture Notes - 2025-01-14 16:45 (92% confidence)",
+                "Meeting Notes - 2025-01-16 14:30 (95% confidence)".to_string(),
+                "Interview Recording - 2025-01-15 10:15 (87% confidence)".to_string(), 
+                "Lecture Notes - 2025-01-14 16:45 (92% confidence)".to_string(),
             ]
         } else {
             vec![
                 format!("Found 3 transcripts matching '{}':", query),
-                "Project Discussion - 2025-01-16 (89% confidence)",
-                "Team Meeting - 2025-01-15 (94% confidence)",
+                "Project Discussion - 2025-01-16 (89% confidence)".to_string(),
+                "Team Meeting - 2025-01-15 (94% confidence)".to_string(),
             ]
         };
         
@@ -50,7 +50,7 @@ impl VoiceCommand for SearchTranscriptsCommand {
         vec![
             PatternType::Exact("search transcripts".to_string()),
             PatternType::Contains("search transcripts".to_string()),
-            PatternType::Fuzzy("find transcripts".to_string()),
+            PatternType::Fuzzy("find transcripts".to_string(), 0.8),
         ]
     }
     
@@ -175,7 +175,7 @@ impl VoiceCommand for ExportTranscriptsCommand {
         vec![
             PatternType::Exact("export transcripts".to_string()),
             PatternType::Contains("export transcripts".to_string()),
-            PatternType::Fuzzy("save transcripts".to_string()),
+            PatternType::Fuzzy("save transcripts".to_string(), 0.8),
         ]
     }
     
@@ -395,7 +395,7 @@ impl VoiceCommand for TagTranscriptCommand {
         vec![
             PatternType::Contains("tag last transcript".to_string()),
             PatternType::Contains("tag transcript".to_string()),
-            PatternType::Fuzzy("add tag".to_string()),
+            PatternType::Fuzzy("add tag".to_string(), 0.8),
         ]
     }
     
@@ -441,14 +441,14 @@ impl VoiceCommand for FindTranscriptsContainingCommand {
         };
         
         let results = if phrase.is_empty() || phrase == "unknown phrase" {
-            vec!["No search phrase specified"]
+            vec!["No search phrase specified".to_string()]
         } else {
             vec![
                 format!("Found 4 transcripts containing '{}':", phrase),
-                "• Meeting Notes - 2025-01-16 (3 occurrences)",
-                "• Project Discussion - 2025-01-15 (1 occurrence)",
-                "• Team Standup - 2025-01-14 (2 occurrences)",
-                "• Client Call - 2025-01-13 (1 occurrence)",
+                "• Meeting Notes - 2025-01-16 (3 occurrences)".to_string(),
+                "• Project Discussion - 2025-01-15 (1 occurrence)".to_string(),
+                "• Team Standup - 2025-01-14 (2 occurrences)".to_string(),
+                "• Client Call - 2025-01-13 (1 occurrence)".to_string(),
             ]
         };
         
@@ -467,7 +467,7 @@ impl VoiceCommand for FindTranscriptsContainingCommand {
         vec![
             PatternType::Contains("find transcripts containing".to_string()),
             PatternType::Contains("search for".to_string()),
-            PatternType::Fuzzy("transcripts with".to_string()),
+            PatternType::Fuzzy("transcripts with".to_string(), 0.8),
         ]
     }
     
@@ -727,7 +727,7 @@ impl VoiceCommand for ExportTranscriptAsTextCommand {
         vec![
             PatternType::Contains("export transcript as text".to_string()),
             PatternType::Contains("save transcript as".to_string()),
-            PatternType::Fuzzy("export as text".to_string()),
+            PatternType::Fuzzy("export as text".to_string(), 0.8),
         ]
     }
     

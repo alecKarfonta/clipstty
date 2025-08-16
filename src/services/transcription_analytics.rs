@@ -9,9 +9,10 @@ use chrono::{DateTime, Utc, NaiveDate, Datelike, Timelike};
 use serde::{Deserialize, Serialize};
 
 use super::transcription_log::{
-    TranscriptEntry, TranscriptId, SessionId, DailyStats, AccuracyPoint, 
+    TranscriptEntry, TranscriptId, DailyStats, AccuracyPoint, 
     TranscriptError, AnalyticsConfig
 };
+use super::audio_archive::SessionId;
 
 /// Comprehensive transcription analytics engine
 pub struct TranscriptAnalytics {
@@ -539,7 +540,7 @@ impl TranscriptAnalytics {
             peak_hour: 0,
         });
         
-        let word_count = self.count_words(&transcript.text);
+        let word_count = transcript.text.split_whitespace().count();
         
         daily_stats.total_transcripts += 1;
         daily_stats.total_words += word_count;
@@ -592,7 +593,7 @@ impl TranscriptAnalytics {
             processing_efficiency: 0.0,
         });
         
-        let word_count = self.count_words(&transcript.text);
+        let word_count = transcript.text.split_whitespace().count();
         
         session_analytics.total_transcripts += 1;
         session_analytics.total_words += word_count;
@@ -633,10 +634,9 @@ impl TranscriptAnalytics {
             / model_perf.total_transcripts as f32;
         
         let processing_time = Duration::from_millis(transcript.duration_ms);
-        model_perf.average_processing_time = Duration::from_millis(
-            (model_perf.average_processing_time.as_millis() * (model_perf.total_transcripts - 1) as u128 
-             + processing_time.as_millis()) / model_perf.total_transcripts as u128
-        );
+        let avg_millis = (model_perf.average_processing_time.as_millis() * (model_perf.total_transcripts - 1) as u128 
+                         + processing_time.as_millis()) / model_perf.total_transcripts as u128;
+        model_perf.average_processing_time = Duration::from_millis(avg_millis.min(u64::MAX as u128) as u64);
         
         // Add accuracy point
         model_perf.accuracy_history.push(AccuracyPoint {

@@ -312,7 +312,13 @@ impl TranscriptIndexer {
             
             term_freq.frequency += 1;
             term_freq.positions.push(position);
-            term_freq.contexts.push(self.extract_context(&transcript.text, position, word));
+            // Extract context without borrowing self
+            let words: Vec<&str> = transcript.text.split_whitespace().collect();
+            let context_size = 3;
+            let start = position.saturating_sub(context_size);
+            let end = (position + context_size + 1).min(words.len());
+            let context = words[start..end].join(" ");
+            term_freq.contexts.push(context);
             
             posting_list.total_frequency += 1;
         }

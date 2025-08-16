@@ -14,6 +14,8 @@ pub mod transcription_log;
 pub mod transcription_deduplication;
 pub mod transcription_search;
 pub mod transcription_analytics;
+pub mod transcript_storage;
+pub mod transcription_manager;
 
 pub use audio::AudioService;
 pub use clipboard::ClipboardService;
@@ -29,3 +31,5 @@ pub use transcription_log::{TranscriptionLogService, TranscriptEntry, Transcript
 pub use transcription_deduplication::TranscriptDeduplicator;
 pub use transcription_search::TranscriptIndexer;
 pub use transcription_analytics::TranscriptAnalytics;
+pub use transcript_storage::{FileTranscriptStorage, FileStorageConfig};
+pub use transcription_manager::{TranscriptionManager, TranscriptionManagerConfig, TranscriptionResult};

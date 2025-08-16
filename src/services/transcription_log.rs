@@ -15,17 +15,18 @@ use uuid::Uuid;
 use regex::Regex;
 
 use super::audio_archive::{SessionId, AudioFileId};
+use super::transcript_storage::{FileTranscriptStorage, FileStorageConfig};
 
 /// Transcription logging service with deduplication and analytics
 pub struct TranscriptionLogService {
     /// Storage backend for transcripts
     storage: Box<dyn TranscriptStorage>,
     /// Deduplication engine
-    deduplicator: TranscriptDeduplicator,
+    deduplicator: super::transcription_deduplication::TranscriptDeduplicator,
     /// Full-text search indexer
-    indexer: TranscriptIndexer,
+    indexer: super::transcription_search::TranscriptIndexer,
     /// Analytics engine
-    analytics: TranscriptAnalytics,
+    analytics: super::transcription_analytics::TranscriptAnalytics,
     /// Service configuration
     config: TranscriptionLogConfig,
     /// In-memory cache for recent transcripts
@@ -601,8 +602,17 @@ pub enum TranscriptError {
 
 // Implementation of TranscriptionLogService
 impl TranscriptionLogService {
-    /// Create a new transcription log service
-    pub fn new(
+    /// Create a new transcription log service with file storage
+    pub fn new(config: TranscriptionLogConfig) -> Result<Self, TranscriptError> {
+        let storage_config = FileStorageConfig::default();
+        let file_storage = FileTranscriptStorage::new(config.storage_path.clone(), storage_config)?;
+        let storage: Box<dyn TranscriptStorage> = Box::new(file_storage);
+        
+        Self::new_with_storage(storage, config)
+    }
+    
+    /// Create a new transcription log service with custom storage
+    pub fn new_with_storage(
         storage: Box<dyn TranscriptStorage>,
         config: TranscriptionLogConfig,
     ) -> Result<Self, TranscriptError> {
@@ -611,27 +621,30 @@ impl TranscriptionLogService {
             fs::create_dir_all(&config.storage_path)?;
         }
         
-        let deduplicator = TranscriptDeduplicator::new(DeduplicationConfig {
+        let dedup_config = DeduplicationConfig {
             similarity_threshold: 0.85,
             recent_window_minutes: 10,
             enable_fuzzy_matching: true,
             hash_algorithm: HashAlgorithm::ContentBased,
-        });
+        };
+        let deduplicator = super::transcription_deduplication::TranscriptDeduplicator::new(dedup_config);
         
-        let indexer = TranscriptIndexer::new(IndexConfig {
+        let index_config = IndexConfig {
             enable_word_index: true,
             enable_phrase_index: true,
             max_phrase_length: 5,
             stop_words: Self::default_stop_words(),
             min_word_length: 2,
-        });
+        };
+        let indexer = super::transcription_search::TranscriptIndexer::new(index_config);
         
-        let analytics = TranscriptAnalytics::new(AnalyticsConfig {
+        let analytics_config = AnalyticsConfig {
             enable_word_frequency: true,
             enable_daily_stats: true,
             enable_accuracy_tracking: true,
             retention_days: 365,
-        });
+        };
+        let analytics = super::transcription_analytics::TranscriptAnalytics::new(analytics_config);
         
         Ok(Self {
             storage,
@@ -728,13 +741,18 @@ impl TranscriptionLogService {
         Ok(entry)
     }
     
+    /// Get transcript by ID
+    pub fn get_transcript(&self, id: TranscriptId) -> Result<Option<TranscriptEntry>, TranscriptError> {
+        self.storage.get_transcript(id)
+    }
+    
     /// Search transcripts
     pub fn search_transcripts(&self, criteria: &SearchCriteria) -> Result<Vec<TranscriptMatch>, TranscriptError> {
         self.indexer.search(criteria)
     }
     
     /// Get transcription analytics
-    pub fn get_analytics(&self) -> &TranscriptAnalytics {
+    pub fn get_analytics(&self) -> &super::transcription_analytics::TranscriptAnalytics {
         &self.analytics
     }
     
@@ -899,11 +917,7 @@ mod tests {
             ..Default::default()
         };
         
-        let storage = Box::new(MockTranscriptStorage {
-            transcripts: HashMap::new(),
-        });
-        
-        let service = TranscriptionLogService::new(storage, config);
+        let service = TranscriptionLogService::new(config);
         assert!(service.is_ok());
     }
     
@@ -916,11 +930,7 @@ mod tests {
             ..Default::default()
         };
         
-        let storage = Box::new(MockTranscriptStorage {
-            transcripts: HashMap::new(),
-        });
-        
-        let mut service = TranscriptionLogService::new(storage, config).unwrap();
+        let mut service = TranscriptionLogService::new(config).unwrap();
         
         let result = service.log_transcription(
             "Hello, this is a test transcription.",

@@ -9,6 +9,7 @@ use super::audio_commands::*;
 use super::stt_commands::*;
 use super::system_commands::*;
 use super::audio_recording_commands::*;
+use super::transcript_management_commands::*;
 
 
 /// Create a comprehensive voice command engine with all available commands
@@ -57,6 +58,20 @@ pub fn register_all_commands(engine: &mut VoiceCommandEngine) -> Result<(), Voic
     engine.register_command(create_compress_files_command())?;
     engine.register_command(create_show_storage_stats_command())?;
     engine.register_command(create_cleanup_storage_command())?;
+    
+    // Transcript management commands (12 commands) - Phase 3
+    engine.register_command(create_search_transcripts_command())?;
+    engine.register_command(create_show_recent_transcripts_command())?;
+    engine.register_command(create_export_transcripts_command())?;
+    engine.register_command(create_delete_duplicate_transcripts_command())?;
+    engine.register_command(create_show_transcription_statistics_command())?;
+    engine.register_command(create_create_transcript_backup_command())?;
+    engine.register_command(create_tag_transcript_command())?;
+    engine.register_command(create_find_transcripts_containing_command())?;
+    engine.register_command(create_show_accuracy_trends_command())?;
+    engine.register_command(create_merge_similar_transcripts_command())?;
+    engine.register_command(create_show_word_frequency_command())?;
+    engine.register_command(create_export_transcript_as_text_command())?;
     
     // STT commands (11 commands)
     register_stt_commands(engine)?;
