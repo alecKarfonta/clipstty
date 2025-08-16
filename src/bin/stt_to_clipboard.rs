@@ -589,6 +589,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                             _ => {}
                                                         }
                                                     }
+                                                    stt_clippy::services::voice_commands::CommandData::Boolean(value) => {
+                                                        // Handle boolean commands based on the command name
+                                                        if command_result.message.contains("Instant output") {
+                                                            instant_output = *value;
+                                                            info!(target: "runner", "[stt_to_clipboard].main instant_output flag updated to: {}", instant_output);
+                                                        }
+                                                    }
                                                     _ => {}
                                                 }
                                             }
@@ -618,12 +625,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     if instant_output {
                                         if let Ok(mut p) = PasteService::new() {
                                             // Try direct inject; fall back to clipboard paste
-                                            if p.inject_text(&result.text).is_err() {
-                                                let _ = p.clipboard_paste(&result.text, 100);
+                                            match p.inject_text(&result.text) {
+                                                Ok(()) => {
+                                                    info!(target: "runner", "[stt_to_clipboard].main text injected successfully, length={}", result.text.len());
+                                                }
+                                                Err(e) => {
+                                                    info!(target: "runner", "[stt_to_clipboard].main text injection failed: {}, falling back to clipboard paste", e);
+                                                    match p.clipboard_paste(&result.text, 100) {
+                                                        Ok(()) => {
+                                                            info!(target: "runner", "[stt_to_clipboard].main clipboard paste fallback successful, length={}", result.text.len());
+                                                        }
+                                                        Err(e2) => {
+                                                            error!(target: "runner", "[stt_to_clipboard].main clipboard paste fallback failed: {}", e2);
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            info!(target: "runner", "[stt_to_clipboard].main pasted text_length={}", result.text.len());
-                                        } else if let Err(e) = clipboard.copy_text(&result.text) {
-                                            error!(target: "runner", "[stt_to_clipboard].main clipboard error: {}", e);
+                                        } else {
+                                            error!(target: "runner", "[stt_to_clipboard].main failed to create PasteService, falling back to clipboard");
+                                            if let Err(e) = clipboard.copy_text(&result.text) {
+                                                error!(target: "runner", "[stt_to_clipboard].main clipboard error: {}", e);
+                                            }
                                         }
                                     } else {
                                         if let Err(e) = clipboard.copy_text(&result.text) {

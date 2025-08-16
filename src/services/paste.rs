@@ -22,7 +22,8 @@ impl PasteService {
     /// Inject text at cursor position
     pub fn inject_text(&mut self, text: &str) -> Result<()> {
         // Type text directly if supported
-        let _ = self.enigo.text(text);
+        self.enigo.text(text)
+            .map_err(|e| crate::core::error::ClipboardError::Write(format!("text injection failed: {e}")))?;
         Ok(())
     }
 
