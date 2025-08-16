@@ -7,6 +7,9 @@ pub mod paste;
 pub mod stt;
 pub mod vad;
 pub mod voice_commands;
+pub mod audio_archive;
+pub mod audio_storage;
+pub mod audio_menu;
 
 pub use audio::AudioService;
 pub use clipboard::ClipboardService;
@@ -15,3 +18,6 @@ pub use paste::PasteService;
 pub use stt::STTService;
 pub use vad::{VADService, VADMode};
 pub use voice_commands::{VoiceCommandEngine, VoiceCommand, CommandCategory, CommandResult, VoiceCommandError};
+pub use audio_archive::{AudioArchiveService, AudioError, RecordingSession};
+pub use audio_storage::FileAudioStorage;
+pub use audio_menu::AudioRecordingMenu;

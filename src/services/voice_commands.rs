@@ -15,6 +15,7 @@ pub mod system_commands;
 pub mod comprehensive_registry;
 pub mod suggestion_engine;
 pub mod testing_framework;
+pub mod audio_recording_commands;
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};

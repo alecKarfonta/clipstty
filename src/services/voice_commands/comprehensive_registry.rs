@@ -8,6 +8,7 @@ use super::basic_commands::*;
 use super::audio_commands::*;
 use super::stt_commands::*;
 use super::system_commands::*;
+use super::audio_recording_commands::*;
 
 
 /// Create a comprehensive voice command engine with all available commands
@@ -46,6 +47,16 @@ pub fn register_all_commands(engine: &mut VoiceCommandEngine) -> Result<(), Voic
     
     // Audio commands (12 commands)
     register_audio_commands(engine)?;
+    
+    // Audio recording commands (8 commands)
+    engine.register_command(create_start_recording_command())?;
+    engine.register_command(create_stop_recording_command())?;
+    engine.register_command(create_pause_recording_command())?;
+    engine.register_command(create_resume_recording_command())?;
+    engine.register_command(create_list_sessions_command())?;
+    engine.register_command(create_compress_files_command())?;
+    engine.register_command(create_show_storage_stats_command())?;
+    engine.register_command(create_cleanup_storage_command())?;
     
     // STT commands (11 commands)
     register_stt_commands(engine)?;
