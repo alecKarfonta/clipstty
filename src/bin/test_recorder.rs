@@ -3,6 +3,8 @@
 //! This tool records audio files for testing voice commands with automatic
 //! silence trimming and organized file management.
 
+// run with  cd /Users/alec/git/clipstty && cargo build --bin test_recorder && cargo run --bin test_recorder
+
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::path::{Path, PathBuf};
@@ -231,377 +233,376 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 
                                 // Check if we're waiting for a target phrase
                                 if recording_state.waiting_for_phrase {
-                                        if phrase_detected_in_transcription(&result.text, &recording_state.phrase) {
-                                            println!("🎯 Target phrase detected! Starting precise recording...");
-                                            recording_state.start_phrase_recording(now);
-                                            
-                                            // Extract just the phrase portion from the detection buffer
-                                            if let Some(phrase_audio) = extract_phrase_from_buffer(&recording_state.phrase_detection_buffer, &result.text, &recording_state.phrase) {
-                                                recording_state.audio_buffer = phrase_audio;
-                                                println!("✨ Extracted phrase audio ({} samples)", recording_state.audio_buffer.len());
-                                            }
-                                            
-                                            if let Some(ref tts) = tts_service {
-                                                let _ = tts.announce_instruction("Target phrase detected. Recording in progress.").await;
-                                            }
-                                            continue;
+                                    if phrase_detected_in_transcription(&result.text, &recording_state.phrase) {
+                                        println!("🎯 Target phrase detected! Starting precise recording...");
+                                        recording_state.start_phrase_recording(now);
+                                        
+                                        // Extract just the phrase portion from the detection buffer
+                                        if let Some(phrase_audio) = extract_phrase_from_buffer(&recording_state.phrase_detection_buffer, &result.text, &recording_state.phrase) {
+                                            recording_state.audio_buffer = phrase_audio;
+                                            println!("✨ Extracted phrase audio ({} samples)", recording_state.audio_buffer.len());
                                         }
+                                        
+                                        if let Some(ref tts) = tts_service {
+                                            let _ = tts.announce_instruction("Target phrase detected. Recording in progress.").await;
+                                        }
+                                        continue;
                                     }
-                                    
-                                    // Check for test recorder commands
-                                    if let Some(action) = parse_test_command(&result.text) {
-                                        match action {
-                                            TestCommand::StartRecording(phrase_num) => {
-                                                if let Some(num) = phrase_num {
-                                                    if num > 0 && num <= test_phrases.len() {
-                                                        current_phrase_index = num - 1;
+                                }
+                                
+                                // Check for test recorder commands
+                                if let Some(action) = parse_test_command(&result.text) {
+                                    match action {
+                                        TestCommand::StartRecording(phrase_num) => {
+                                            if let Some(num) = phrase_num {
+                                                if num > 0 && num <= test_phrases.len() {
+                                                    current_phrase_index = num - 1;
+                                                }
+                                            }
+                                            
+                                            if current_phrase_index < test_phrases.len() {
+                                                let phrase = &test_phrases[current_phrase_index];
+                                                recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
+                                                println!("🎯 Waiting for phrase #{}: \"{}\"", 
+                                                         current_phrase_index + 1, phrase);
+                                                println!("   Now say ONLY the target phrase: \"{}\"", phrase);
+                                                println!("   The system will automatically detect and record it.");
+                                                
+                                                // TTS announcement with phase instructions - wait for each to complete
+                                                if let Some(ref tts) = tts_service {
+                                                    if let Err(e) = tts.announce_recording_beginning().await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                    
+                                                    if let Err(e) = tts.announce_recording_start(current_phrase_index + 1, phrase).await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                    
+                                                    if let Err(e) = tts.announce_phase_instructions("recording_active").await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                }
+                                            } else {
+                                                println!("✅ All test phrases completed!");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_completion().await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::StartNext => {
+                                            if current_phrase_index < test_phrases.len() {
+                                                let phrase = &test_phrases[current_phrase_index];
+                                                recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
+                                                println!("🎯 Waiting for phrase #{}: \"{}\"", 
+                                                         current_phrase_index + 1, phrase);
+                                                println!("   Now say ONLY the target phrase: \"{}\"", phrase);
+                                                println!("   The system will automatically detect and record it.");
+                                                
+                                                // TTS announcement with phase instructions - wait for each to complete
+                                                if let Some(ref tts) = tts_service {
+                                                    if let Err(e) = tts.announce_recording_beginning().await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                    
+                                                    if let Err(e) = tts.announce_recording_start(current_phrase_index + 1, phrase).await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                    
+                                                    if let Err(e) = tts.announce_phase_instructions("recording_active").await {
+                                                        println!("⚠️ TTS error: {}", e);
+                                                    }
+                                                }
+                                            } else {
+                                                println!("✅ All test phrases completed!");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_completion().await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::StartWithCountdown => {
+                                            if current_phrase_index < test_phrases.len() {
+                                                let phrase = &test_phrases[current_phrase_index];
+                                                println!("🎯 Countdown for phrase #{}: \"{}\"", 
+                                                         current_phrase_index + 1, phrase);
+                                                
+                                                // TTS countdown sequence
+                                                if let Some(ref tts) = tts_service {
+                                                    if let Err(e) = tts.announce_recording_countdown(phrase).await {
+                                                        println!("⚠️ TTS countdown error: {}", e);
                                                     }
                                                 }
                                                 
-                                                if current_phrase_index < test_phrases.len() {
-                                                    let phrase = &test_phrases[current_phrase_index];
-                                                    recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
-                                                    println!("🎯 Waiting for phrase #{}: \"{}\"", 
-                                                             current_phrase_index + 1, phrase);
-                                                    println!("   Now say ONLY the target phrase: \"{}\"", phrase);
-                                                    println!("   The system will automatically detect and record it.");
-                                                    
-                                                    // TTS announcement with phase instructions - wait for each to complete
-                                                    if let Some(ref tts) = tts_service {
-                                                        if let Err(e) = tts.announce_recording_beginning().await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                        
-                                                        if let Err(e) = tts.announce_recording_start(current_phrase_index + 1, phrase).await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                        
-                                                        if let Err(e) = tts.announce_phase_instructions("recording_active").await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                    }
-                                                } else {
-                                                    println!("✅ All test phrases completed!");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_completion().await;
-                                                    }
+                                                // Start waiting for phrase after countdown
+                                                recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
+                                                println!("   Now say ONLY the target phrase: \"{}\"", phrase);
+                                                println!("   The system will automatically detect and record it.");
+                                                
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_phase_instructions("recording_active").await;
+                                                }
+                                            } else {
+                                                println!("✅ All test phrases completed!");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_completion().await;
                                                 }
                                             }
-                                            TestCommand::StartNext => {
-                                                if current_phrase_index < test_phrases.len() {
-                                                    let phrase = &test_phrases[current_phrase_index];
-                                                    recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
-                                                    println!("🎯 Waiting for phrase #{}: \"{}\"", 
-                                                             current_phrase_index + 1, phrase);
-                                                    println!("   Now say ONLY the target phrase: \"{}\"", phrase);
-                                                    println!("   The system will automatically detect and record it.");
-                                                    
-                                                    // TTS announcement with phase instructions - wait for each to complete
-                                                    if let Some(ref tts) = tts_service {
-                                                        if let Err(e) = tts.announce_recording_beginning().await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                        
-                                                        if let Err(e) = tts.announce_recording_start(current_phrase_index + 1, phrase).await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                        
-                                                        if let Err(e) = tts.announce_phase_instructions("recording_active").await {
-                                                            println!("⚠️ TTS error: {}", e);
-                                                        }
-                                                    }
-                                                } else {
-                                                    println!("✅ All test phrases completed!");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_completion().await;
-                                                    }
+                                        }
+                                        TestCommand::StopRecording => {
+                                            if recording_state.is_recording {
+                                                // Announce validation phase
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_phase_instructions("validation").await;
                                                 }
-                                            }
-                                            TestCommand::StartWithCountdown => {
-                                                if current_phrase_index < test_phrases.len() {
-                                                    let phrase = &test_phrases[current_phrase_index];
-                                                    println!("🎯 Countdown for phrase #{}: \"{}\"", 
-                                                             current_phrase_index + 1, phrase);
-                                                    
-                                                    // TTS countdown sequence
-                                                    if let Some(ref tts) = tts_service {
-                                                        if let Err(e) = tts.announce_recording_countdown(phrase).await {
-                                                            println!("⚠️ TTS countdown error: {}", e);
+                                                
+                                                match save_recording(&recording_state, &test_dir, &mut stt_service) {
+                                                    Ok((filename, transcription)) => {
+                                                        println!("✅ Recording saved: {}", filename);
+                                                        
+                                                        // Store recording info for validation
+                                                        let full_path = test_dir.join(&filename).to_string_lossy().to_string();
+                                                        recording_state.set_last_recording(full_path, transcription.clone());
+                                                        
+                                                        // TTS feedback
+                                                        if let Some(ref tts) = tts_service {
+                                                            let _ = tts.announce_recording_success(&filename).await;
                                                         }
-                                                    }
-                                                    
-                                                    // Start waiting for phrase after countdown
-                                                    recording_state.start_recording(phrase.clone(), current_phrase_index + 1);
-                                                    println!("   Now say ONLY the target phrase: \"{}\"", phrase);
-                                                    println!("   The system will automatically detect and record it.");
-                                                    
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_phase_instructions("recording_active").await;
-                                                    }
-                                                } else {
-                                                    println!("✅ All test phrases completed!");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_completion().await;
-                                                    }
-                                                }
-                                            }
-                                            TestCommand::StopRecording => {
-                                                if recording_state.is_recording {
-                                                    // Announce validation phase
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_phase_instructions("validation").await;
-                                                    }
-                                                    
-                                                    match save_recording(&recording_state, &test_dir) {
-                                                        Ok((filename, transcription)) => {
-                                                            println!("✅ Recording saved: {}", filename);
+                                                        
+                                                        // Auto-validate if transcription available
+                                                        if let Some(ref actual) = transcription {
+                                                            let expected = &recording_state.phrase;
+                                                            let similarity = calculate_transcription_similarity(expected, actual);
+                                                            recording_state.validation_score = Some(similarity);
                                                             
-                                                            // Store recording info for validation
-                                                            let full_path = test_dir.join(&filename).to_string_lossy().to_string();
-                                                            recording_state.set_last_recording(full_path, transcription.clone());
+                                                            println!("📝 Transcription: \"{}\"", actual);
+                                                            println!("🎯 Expected: \"{}\"", expected);
+                                                            println!("📈 Similarity: {:.1}%", similarity * 100.0);
                                                             
-                                                            // TTS feedback
+                                                            let is_good = similarity >= 0.7; // Lowered threshold to account for improved algorithm
                                                             if let Some(ref tts) = tts_service {
-                                                                let _ = tts.announce_recording_success(&filename).await;
+                                                                let _ = tts.announce_validation_result(expected, actual, is_good).await;
                                                             }
                                                             
-                                                            // Auto-validate if transcription available
-                                                            if let Some(ref actual) = transcription {
-                                                                let expected = &recording_state.phrase;
-                                                                let similarity = calculate_transcription_similarity(expected, actual);
-                                                                recording_state.validation_score = Some(similarity);
+                                                            if is_good {
+                                                                println!("✅ Good recording! Moving to next phrase.");
+                                                                recording_state.stop_recording();
+                                                                current_phrase_index += 1;
                                                                 
-                                                                println!("📝 Transcription: \"{}\"", actual);
-                                                                println!("🎯 Expected: \"{}\"", expected);
-                                                                println!("📈 Similarity: {:.1}%", similarity * 100.0);
-                                                                
-                                                                let is_good = similarity >= 0.7; // Lowered threshold to account for improved algorithm
-                                                                if let Some(ref tts) = tts_service {
-                                                                    let _ = tts.announce_validation_result(expected, actual, is_good).await;
-                                                                }
-                                                                
-                                                                if is_good {
-                                                                    println!("✅ Good recording! Moving to next phrase.");
-                                                                    recording_state.stop_recording();
-                                                                    current_phrase_index += 1;
-                                                                    
-                                                                    if current_phrase_index < test_phrases.len() {
-                                                                        println!("🎯 Next phrase: #{} - \"{}\"", 
-                                                                                 current_phrase_index + 1, 
-                                                                                 &test_phrases[current_phrase_index]);
-                                                                        if let Some(ref tts) = tts_service {
-                                                                            if let Err(e) = tts.announce_phase_instructions("next_phrase").await {
-                                                                                println!("⚠️ TTS error: {}", e);
-                                                                            }
-                                                                            tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                                            
-                                                                            if let Err(e) = tts.announce_progress(current_phrase_index, test_phrases.len()).await {
-                                                                                println!("⚠️ TTS error: {}", e);
-                                                                            }
+                                                                if current_phrase_index < test_phrases.len() {
+                                                                    println!("🎯 Next phrase: #{} - \"{}\"", 
+                                                                             current_phrase_index + 1, 
+                                                                             &test_phrases[current_phrase_index]);
+                                                                    if let Some(ref tts) = tts_service {
+                                                                        if let Err(e) = tts.announce_phase_instructions("next_phrase").await {
+                                                                            println!("⚠️ TTS error: {}", e);
                                                                         }
-                                                                    } else {
-                                                                        println!("🎉 All test phrases completed!");
-                                                                        if let Some(ref tts) = tts_service {
-                                                                            let _ = tts.announce_phase_instructions("completion").await;
+                                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                                        
+                                                                        if let Err(e) = tts.announce_progress(current_phrase_index, test_phrases.len()).await {
+                                                                            println!("⚠️ TTS error: {}", e);
                                                                         }
                                                                     }
                                                                 } else {
-                                                                    println!("⚠️ Recording doesn't match well enough (similarity: {:.1}%)", similarity * 100.0);
-                                                                    println!("   Expected: \"{}\"", expected);
-                                                                    println!("   Got: \"{}\"", actual);
-                                                                    
-                                                                    // Provide specific feedback on what went wrong
-                                                                    let feedback = analyze_transcription_mismatch(expected, actual);
-                                                                    println!("💡 Tip: {}", feedback);
-                                                                    println!("   Please try again. Say 'start test recording next' to re-record this phrase.");
-                                                                    
+                                                                    println!("🎉 All test phrases completed!");
                                                                     if let Some(ref tts) = tts_service {
-                                                                        let _ = tts.announce_specific_guidance(expected, actual, &feedback).await;
+                                                                        let _ = tts.announce_phase_instructions("completion").await;
                                                                     }
-                                                                    
-                                                                    // Don't advance to next phrase - stay on current one
-                                                                    recording_state.stop_recording();
-                                                                    // Don't increment current_phrase_index
                                                                 }
                                                             } else {
-                                                                println!("⚠️ Could not transcribe recording for validation.");
+                                                                println!("⚠️ Recording doesn't match well enough (similarity: {:.1}%)", similarity * 100.0);
+                                                                println!("   Expected: \"{}\"", expected);
+                                                                println!("   Got: \"{}\"", actual);
+                                                                
+                                                                // Provide specific feedback on what went wrong
+                                                                let feedback = analyze_transcription_mismatch(expected, actual);
+                                                                println!("💡 Tip: {}", feedback);
                                                                 println!("   Please try again. Say 'start test recording next' to re-record this phrase.");
                                                                 
                                                                 if let Some(ref tts) = tts_service {
-                                                                    let _ = tts.announce_transcription_failure(current_phrase_index + 1).await;
+                                                                    let _ = tts.announce_specific_guidance(expected, actual, &feedback).await;
                                                                 }
                                                                 
+                                                                // Don't advance to next phrase - stay on current one
                                                                 recording_state.stop_recording();
                                                                 // Don't increment current_phrase_index
                                                             }
-                                                        }
-                                                        Err(e) => {
-                                                            println!("❌ Recording failed: {}", e);
+                                                        } else {
+                                                            println!("⚠️ Could not transcribe recording for validation.");
+                                                            println!("   Please try again. Say 'start test recording next' to re-record this phrase.");
                                                             
-                                                            // Determine the type of failure and provide specific TTS feedback
                                                             if let Some(ref tts) = tts_service {
-                                                                if e.to_string().contains("silence") {
-                                                                    let _ = tts.announce_silence_detected(current_phrase_index + 1).await;
-                                                                } else {
-                                                                    let _ = tts.announce_recording_failure(&e.to_string(), current_phrase_index + 1).await;
-                                                                }
+                                                                let _ = tts.announce_transcription_failure(current_phrase_index + 1).await;
                                                             }
                                                             
                                                             recording_state.stop_recording();
-                                                            // Don't increment current_phrase_index - stay on current phrase
+                                                            // Don't increment current_phrase_index
                                                         }
-                                                    }
-                                                } else {
-                                                    println!("❌ No recording in progress");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_error("No recording in progress").await;
-                                                    }
-                                                }
-                                            }
-                                            TestCommand::ShowPhrases => {
-                                                show_test_phrases(&test_phrases, current_phrase_index);
-                                            }
-                                            TestCommand::ShowCurrent => {
-                                                if current_phrase_index < test_phrases.len() {
-                                                    let current_phrase = &test_phrases[current_phrase_index];
-                                                    println!("🎯 Current phrase: #{} - \"{}\"", 
-                                                             current_phrase_index + 1, 
-                                                             current_phrase);
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_instruction(&format!("Current phrase is number {}: {}", current_phrase_index + 1, current_phrase)).await;
-                                                    }
-                                                } else {
-                                                    println!("✅ All phrases completed!");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_completion().await;
-                                                    }
-                                                }
-                                            }
-                                            TestCommand::ShowRecordingTips => {
-                                                println!("💡 Recording Tips:");
-                                                println!("   • Speak clearly and at normal pace");
-                                                println!("   • Wait for the recording prompt before speaking");
-                                                println!("   • Make sure you're in a quiet environment");
-                                                println!("   • Say each word distinctly");
-                                                println!("   • Keep microphone at consistent distance");
-                                                println!("   • Avoid background noise and interruptions");
-                                                
-                                                if let Some(ref tts) = tts_service {
-                                                    let _ = tts.announce_recording_tips().await;
-                                                }
-                                            }
-                                            TestCommand::TestTTS => {
-                                                println!("🔊 Testing TTS audio feedback...");
-                                                if let Some(ref tts) = tts_service {
-                                                    let _ = tts.speak_and_wait("TTS audio feedback is working correctly. You should hear this message clearly.").await;
-                                                    println!("✅ TTS test completed. Did you hear the audio message?");
-                                                } else {
-                                                    println!("❌ TTS service is not available");
-                                                }
-                                            }
-                                            TestCommand::SkipTo(num) => {
-                                                if num > 0 && num <= test_phrases.len() {
-                                                    current_phrase_index = num - 1;
-                                                    println!("⏭️ Skipped to phrase #{}: \"{}\"", 
-                                                             num, &test_phrases[current_phrase_index]);
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_instruction(&format!("Skipped to phrase {}. Ready to record.", num)).await;
-                                                    }
-                                                } else {
-                                                    println!("❌ Invalid phrase number. Use 1-{}", test_phrases.len());
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_error(&format!("Invalid phrase number. Use 1 to {}", test_phrases.len())).await;
-                                                    }
-                                                }
-                                            }
-                                            TestCommand::ValidateLastRecording => {
-                                                if let Some(ref _last_path) = recording_state.last_recording_path {
-                                                    if let Some(ref transcription) = recording_state.last_transcription {
-                                                        let expected = &recording_state.phrase;
-                                                        let similarity = calculate_transcription_similarity(expected, transcription);
+                                                        }
+                                                    Err(e) => {
+                                                        println!("❌ Recording failed: {}", e);
                                                         
-                                                        println!("📝 Last transcription: \"{}\"", transcription);
-                                                        println!("🎯 Expected: \"{}\"", expected);
-                                                        println!("📈 Similarity: {:.1}%", similarity * 100.0);
-                                                        
-                                                        let is_good = similarity >= 0.8;
+                                                        // Determine the type of failure and provide specific TTS feedback
                                                         if let Some(ref tts) = tts_service {
-                                                            let _ = tts.announce_validation_result(expected, transcription, is_good).await;
-                                                        }
-                                                    } else {
-                                                        println!("❌ No transcription available for last recording");
-                                                        if let Some(ref tts) = tts_service {
-                                                            let _ = tts.announce_error("No transcription available for validation").await;
-                                                        }
-                                                    }
-                                                } else {
-                                                    println!("❌ No recording to validate");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_error("No recording to validate").await;
-                                                    }
-                                                }
-                                            }
-                                            TestCommand::CleanAndSaveTestFile => {
-                                                if let Some(ref last_path) = recording_state.last_recording_path {
-                                                    match create_clean_test_file(last_path, &test_dir, recording_state.phrase_number, &recording_state.phrase) {
-                                                        Ok(clean_filename) => {
-                                                            println!("✨ Clean test file created: {}", clean_filename);
-                                                            if let Some(ref tts) = tts_service {
-                                                                let _ = tts.announce_instruction(&format!("Clean test file created: {}", clean_filename)).await;
+                                                            if e.to_string().contains("silence") {
+                                                                let _ = tts.announce_silence_detected(current_phrase_index + 1).await;
+                                                            } else {
+                                                                let _ = tts.announce_recording_failure(&e.to_string(), current_phrase_index + 1).await;
                                                             }
                                                         }
-                                                        Err(e) => {
-                                                            println!("❌ Failed to create clean test file: {}", e);
-                                                            if let Some(ref tts) = tts_service {
-                                                                let _ = tts.announce_error(&format!("Failed to create clean test file: {}", e)).await;
-                                                            }
-                                                        }
-                                                    }
-                                                } else {
-                                                    println!("❌ No recording to clean");
-                                                    if let Some(ref tts) = tts_service {
-                                                        let _ = tts.announce_error("No recording to clean").await;
+                                                        
+                                                        recording_state.stop_recording();
+                                                        // Don't increment current_phrase_index - stay on current phrase
                                                     }
                                                 }
-                                            }
-                                            TestCommand::ToggleTTSFeedback => {
-                                                if let Some(ref mut tts) = tts_service {
-                                                    let new_state = !tts.is_enabled();
-                                                    tts.set_enabled(new_state);
-                                                    if new_state {
-                                                        println!("🔊 TTS feedback enabled");
-                                                        let _ = tts.announce_instruction("TTS feedback is now enabled").await;
-                                                    } else {
-                                                        println!("🔇 TTS feedback disabled");
-                                                    }
-                                                } else {
-                                                    println!("❌ TTS service not available");
+                                            } else {
+                                                println!("❌ No recording in progress");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error("No recording in progress").await;
                                                 }
-                                            }
-                                            TestCommand::Quit => {
-                                                println!("👋 Exiting test recorder...");
-                                                return Ok(());
                                             }
                                         }
-                                    } else {
-                                        // No test command recognized - provide helpful guidance
-                                        if !recording_state.is_recording && !recording_state.waiting_for_phrase {
-                                            println!("💡 Tip: To start recording, say 'start test recording next' or 'start recording with countdown'");
-                                            println!("   Current phrase to record: #{} - \"{}\"", 
-                                                     current_phrase_index + 1, 
-                                                     test_phrases.get(current_phrase_index).unwrap_or(&"<end of list>".to_string()));
+                                        TestCommand::ShowPhrases => {
+                                            show_test_phrases(&test_phrases, current_phrase_index);
+                                        }
+                                        TestCommand::ShowCurrent => {
+                                            if current_phrase_index < test_phrases.len() {
+                                                let current_phrase = &test_phrases[current_phrase_index];
+                                                println!("🎯 Current phrase: #{} - \"{}\"", 
+                                                         current_phrase_index + 1, 
+                                                         current_phrase);
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_instruction(&format!("Current phrase is number {}: {}", current_phrase_index + 1, current_phrase)).await;
+                                                }
+                                            } else {
+                                                println!("✅ All phrases completed!");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_completion().await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::ShowRecordingTips => {
+                                            println!("💡 Recording Tips:");
+                                            println!("   • Speak clearly and at normal pace");
+                                            println!("   • Wait for the recording prompt before speaking");
+                                            println!("   • Make sure you're in a quiet environment");
+                                            println!("   • Say each word distinctly");
+                                            println!("   • Keep microphone at consistent distance");
+                                            println!("   • Avoid background noise and interruptions");
                                             
                                             if let Some(ref tts) = tts_service {
-                                                let _ = tts.announce_instruction("To start recording, say 'start test recording next' or 'start recording with countdown'").await;
+                                                let _ = tts.announce_recording_tips().await;
                                             }
-                                        } else if recording_state.waiting_for_phrase {
-                                            println!("🎯 Still waiting for target phrase: \"{}\"", recording_state.phrase);
-                                            println!("   Say ONLY the target phrase, not commands.");
                                         }
+                                        TestCommand::TestTTS => {
+                                            println!("🔊 Testing TTS audio feedback...");
+                                            if let Some(ref tts) = tts_service {
+                                                let _ = tts.speak_and_wait("TTS audio feedback is working correctly. You should hear this message clearly.").await;
+                                                println!("✅ TTS test completed. Did you hear the audio message?");
+                                            } else {
+                                                println!("❌ TTS service is not available");
+                                            }
+                                        }
+                                        TestCommand::SkipTo(num) => {
+                                            if num > 0 && num <= test_phrases.len() {
+                                                current_phrase_index = num - 1;
+                                                println!("⏭️ Skipped to phrase #{}: \"{}\"", 
+                                                         num, &test_phrases[current_phrase_index]);
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_instruction(&format!("Skipped to phrase {}. Ready to record.", num)).await;
+                                                }
+                                            } else {
+                                                println!("❌ Invalid phrase number. Use 1-{}", test_phrases.len());
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error(&format!("Invalid phrase number. Use 1 to {}", test_phrases.len())).await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::ValidateLastRecording => {
+                                            if let Some(ref _last_path) = recording_state.last_recording_path {
+                                                if let Some(ref transcription) = recording_state.last_transcription {
+                                                    let expected = &recording_state.phrase;
+                                                    let similarity = calculate_transcription_similarity(expected, transcription);
+                                                    
+                                                    println!("📝 Last transcription: \"{}\"", transcription);
+                                                    println!("🎯 Expected: \"{}\"", expected);
+                                                    println!("📈 Similarity: {:.1}%", similarity * 100.0);
+                                                    
+                                                    let is_good = similarity >= 0.8;
+                                                    if let Some(ref tts) = tts_service {
+                                                        let _ = tts.announce_validation_result(expected, transcription, is_good).await;
+                                                    }
+                                                } else {
+                                                    println!("❌ No transcription available for last recording");
+                                                    if let Some(ref tts) = tts_service {
+                                                        let _ = tts.announce_error("No transcription available for validation").await;
+                                                    }
+                                                }
+                                            } else {
+                                                println!("❌ No recording to validate");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error("No recording to validate").await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::CleanAndSaveTestFile => {
+                                            if let Some(ref last_path) = recording_state.last_recording_path {
+                                                match create_clean_test_file(last_path, &test_dir, recording_state.phrase_number, &recording_state.phrase) {
+                                                    Ok(clean_filename) => {
+                                                        println!("✨ Clean test file created: {}", clean_filename);
+                                                        if let Some(ref tts) = tts_service {
+                                                            let _ = tts.announce_instruction(&format!("Clean test file created: {}", clean_filename)).await;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        println!("❌ Failed to create clean test file: {}", e);
+                                                        if let Some(ref tts) = tts_service {
+                                                            let _ = tts.announce_error(&format!("Failed to create clean test file: {}", e)).await;
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                println!("❌ No recording to clean");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error("No recording to clean").await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::ToggleTTSFeedback => {
+                                            if let Some(ref mut tts) = tts_service {
+                                                let new_state = !tts.is_enabled();
+                                                tts.set_enabled(new_state);
+                                                if new_state {
+                                                    println!("🔊 TTS feedback enabled");
+                                                    let _ = tts.announce_instruction("TTS feedback is now enabled").await;
+                                                } else {
+                                                    println!("🔇 TTS feedback disabled");
+                                                }
+                                            } else {
+                                                println!("❌ TTS service not available");
+                                            }
+                                        }
+                                        TestCommand::Quit => {
+                                            println!("👋 Exiting test recorder...");
+                                            return Ok(());
+                                        }
+                                    }
+                                } else {
+                                    // No test command recognized - provide helpful guidance
+                                    if !recording_state.is_recording && !recording_state.waiting_for_phrase {
+                                        println!("💡 Tip: To start recording, say 'start test recording next' or 'start recording with countdown'");
+                                        println!("   Current phrase to record: #{} - \"{}\"", 
+                                                 current_phrase_index + 1, 
+                                                 test_phrases.get(current_phrase_index).unwrap_or(&"<end of list>".to_string()));
+                                        
+                                        if let Some(ref tts) = tts_service {
+                                            let _ = tts.announce_instruction("To start recording, say 'start test recording next' or 'start recording with countdown'").await;
+                                        }
+                                    } else if recording_state.waiting_for_phrase {
+                                        println!("🎯 Still waiting for target phrase: \"{}\"", recording_state.phrase);
+                                        println!("   Say ONLY the target phrase, not commands.");
                                     }
                                 }
                             }
@@ -799,7 +800,7 @@ fn parse_test_command(text: &str) -> Option<TestCommand> {
     }
 }
 
-fn save_recording(state: &RecordingState, test_dir: &Path) -> Result<(String, Option<String>), Box<dyn std::error::Error>> {
+fn save_recording(state: &RecordingState, test_dir: &Path, stt_service: &mut STTService) -> Result<(String, Option<String>), Box<dyn std::error::Error>> {
     if state.audio_buffer.is_empty() {
         return Err("No audio data to save".into());
     }
@@ -841,7 +842,7 @@ fn save_recording(state: &RecordingState, test_dir: &Path) -> Result<(String, Op
           sample_count);
     
     // Transcribe the saved audio for validation
-    let transcription = transcribe_audio_file(&filepath);
+    let transcription = transcribe_audio_file(&filepath, stt_service);
     
     Ok((filename, transcription))
 }
@@ -1034,7 +1035,7 @@ fn resample_linear(input: &[f32], from_sr: u32, to_sr: u32) -> Vec<f32> {
 }
 
 /// Transcribe an audio file for validation
-fn transcribe_audio_file(filepath: &std::path::Path) -> Option<String> {
+fn transcribe_audio_file(filepath: &std::path::Path, stt_service: &mut STTService) -> Option<String> {
     // Read the audio file
     let mut reader = match hound::WavReader::open(filepath) {
         Ok(reader) => reader,
@@ -1057,19 +1058,11 @@ fn transcribe_audio_file(filepath: &std::path::Path) -> Option<String> {
         }
     };
     
-    // Transcribe using STT service
-    match STTService::new() {
-        Ok(mut stt) => {
-            match stt.transcribe(&audio_samples) {
-                Ok(result) => Some(result.text),
-                Err(e) => {
-                    error!("STT transcription failed: {}", e);
-                    None
-                }
-            }
-        }
+    // Transcribe using the provided STT service
+    match stt_service.transcribe(&audio_samples) {
+        Ok(result) => Some(result.text),
         Err(e) => {
-            error!("Failed to create STT service: {}", e);
+            error!("STT transcription failed: {}", e);
             None
         }
     }

@@ -83,6 +83,33 @@ cargo run --bin stt_to_clipboard
 
 This continuously listens for speech, transcribes detected segments, and copies the result to your clipboard.
 
+### Test and Debug Utilities
+
+The project includes several testing and debugging utilities:
+
+#### Voice Command Test Recorder
+```bash
+cargo run --bin test_recorder
+```
+An enhanced audio recording tool for testing voice commands with:
+- Automatic silence trimming
+- TTS audio feedback and guidance
+- Organized file management in `test_recordings/` directory
+- Support for recording multiple test samples
+- Real-time audio level monitoring
+
+#### TTS Debugging Tools
+```bash
+# Simple TTS test (basic functionality)
+cargo run --bin test_tts_simple
+
+# Advanced TTS debugging (service integration)
+cargo run --bin debug_tts
+```
+These tools help debug and test the Text-to-Speech functionality:
+- `test_tts_simple`: Basic TTS functionality test with voice listing
+- `debug_tts`: Comprehensive TTS service testing with phase instructions
+
 ### Run the main app (hotkey-activated, creates a config file on first run)
 
 ```bash
@@ -171,16 +198,21 @@ encrypt_storage = true       # Encrypt clipboard history at rest
 ### Project Structure
 
 ```
-stt-clippy/
+clipstty/
 ├── src/                     # Source code
+│   ├── bin/                # Binary executables
+│   │   ├── stt_to_clipboard.rs    # Main STT CLI tool
+│   │   ├── test_recorder.rs       # Voice command test recorder
+│   │   ├── debug_tts.rs           # TTS debugging utility
+│   │   └── test_tts_simple.rs     # Simple TTS test tool
 │   ├── core/               # Core application logic
 │   ├── services/           # Service implementations
 │   ├── platform/           # Platform-specific code
 │   └── ui/                 # User interface
-├── docs/                   # Documentation
+├── test_recordings/        # Audio test files directory
 ├── tests/                  # Test suite
 ├── scripts/                # Build and deployment scripts
-└── resources/              # Application resources
+└── docs/                   # Documentation files
 ```
 
 ### Building from Source
@@ -238,6 +270,29 @@ cargo test --test integration
 # Run performance benchmarks
 cargo bench
 ```
+
+#### Manual Testing Tools
+
+The project includes specialized testing utilities for manual testing and debugging:
+
+```bash
+# Test voice command recording with audio feedback
+cargo run --bin test_recorder
+
+# Test basic TTS functionality
+cargo run --bin test_tts_simple
+
+# Debug TTS service integration
+cargo run --bin debug_tts
+
+# Test STT with clipboard integration
+cargo run --bin stt_to_clipboard
+```
+
+These tools are particularly useful for:
+- **Voice Command Development**: Record test audio samples with `test_recorder`
+- **TTS Integration Testing**: Verify text-to-speech functionality with the TTS debug tools
+- **Audio Pipeline Testing**: Test the complete STT pipeline with `stt_to_clipboard`
 
 ## 📚 Documentation
 
