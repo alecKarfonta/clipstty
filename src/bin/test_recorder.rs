@@ -12,6 +12,7 @@ use std::fs;
 
 use stt_clippy::services::{
     audio::AudioService, 
+    audio_playback::AudioPlaybackService,
     stt::STTService,
     tts::TTSService,
     voice_commands::comprehensive_registry::create_comprehensive_command_engine,
@@ -72,6 +73,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut stt_service = STTService::new()?;
     info!("STT service initialized - model will stay loaded between transcriptions");
     
+    // Initialize audio playback service
+    let mut playback_service = AudioPlaybackService::new()?;
+    info!("Audio playback service initialized");
+    
     // Audio capture setup
     let captured: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
     let captured_ref = captured.clone();
@@ -101,7 +106,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  • 'start test recording [phrase_number]' - Start waiting for a specific test phrase");
     println!("  • 'start test recording next' - Start waiting for the next phrase in sequence");
     println!("  • 'start recording with countdown' - Start waiting for phrase with countdown");
-    println!("  • 'stop test recording' - Stop current recording and save with validation");
+    println!("  • 'accept recording' - Accept the current recording and move to next phrase");
+    println!("  • 'try again' - Reject the current recording and re-record the same phrase");
     println!("  • 'validate last recording' - Check if the last recording matches expected phrase");
     println!("  • 'clean and save test file' - Trim and optimize the last recording for testing");
     println!("  • 'toggle tts feedback' - Enable/disable audio feedback");
@@ -115,8 +121,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("💡 How it works:");
     println!("   1. Say a command like 'start test recording next'");
     println!("   2. Wait for the prompt, then say ONLY the target phrase");
-    println!("   3. The system will detect and record just that phrase");
-    println!("   4. Say 'stop test recording' when done");
+    println!("   3. The system will automatically detect, record, and save the phrase");
+    println!("   4. The recording will be played back for you to review");
+    println!("   5. Say 'accept recording' to keep it or 'try again' to re-record");
+    println!("   6. If accepted, the system moves to the next phrase");
     println!();
     let default_phrase = "<end of list>".to_string();
     let current_phrase = test_phrases.get(current_phrase_index).unwrap_or(&default_phrase);
@@ -180,6 +188,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         let now = Instant::now();
         
+        // Always capture audio when waiting for phrase to ensure we don't miss speech beginnings
+        if recording_state.waiting_for_phrase {
+            recording_state.add_detection_samples(&audio);
+            // Also add to audio buffer to ensure we capture the beginning of speech
+            recording_state.add_audio_samples(&audio);
+        }
+        
         if energy >= energy_threshold {
             last_voice_instant = Some(now);
             if !voice_active {
@@ -196,9 +211,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Handle audio capture based on recording state
             if recording_state.is_recording {
                 recording_state.add_audio_samples(&audio);
-            } else if recording_state.waiting_for_phrase {
-                // Always collect audio for phrase detection when waiting
-                recording_state.add_detection_samples(&audio);
             }
             
             continue;
@@ -224,6 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // Process voice command using the persistent STT service
                             if let Ok(result) = stt_service.transcribe(&seg_audio) {
                                 println!("🎤 Heard: \"{}\"", result.text);
+                                debug!("Live transcription used {} samples", seg_audio.len());
                                 
                                 // Skip processing during command cooldown to avoid detecting commands in phrase recordings
                                 if recording_state.is_in_command_cooldown(now) {
@@ -234,18 +247,100 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 // Check if we're waiting for a target phrase
                                 if recording_state.waiting_for_phrase {
                                     if phrase_detected_in_transcription(&result.text, &recording_state.phrase) {
-                                        println!("🎯 Target phrase detected! Starting precise recording...");
-                                        recording_state.start_phrase_recording(now);
+                                        println!("🎯 Target phrase detected! Extracting and saving...");
                                         
-                                        // Extract just the phrase portion from the detection buffer
-                                        if let Some(phrase_audio) = extract_phrase_from_buffer(&recording_state.phrase_detection_buffer, &result.text, &recording_state.phrase) {
+                                        // Use the phrase_detection_buffer which has been collecting audio with proper pre-phrase padding
+                                        if let Some(phrase_audio) = extract_phrase_from_buffer_with_padding(&recording_state.phrase_detection_buffer, &result.text, &recording_state.phrase) {
                                             recording_state.audio_buffer = phrase_audio;
-                                            println!("✨ Extracted phrase audio ({} samples)", recording_state.audio_buffer.len());
+                                            println!("✨ Extracted phrase audio with padding ({} samples, {:.2}s)", recording_state.audio_buffer.len(), recording_state.audio_buffer.len() as f32 / 16000.0);
+                                        } else {
+                                            // Fallback to processed seg_audio if extraction fails
+                                            let processed_seg_audio = process_audio_for_saving(&seg_audio);
+                                            recording_state.audio_buffer = processed_seg_audio;
+                                            println!("⚠️ Fallback to processed seg_audio ({} samples)", recording_state.audio_buffer.len());
+                                        }
+                                            
+                                        // Immediately save the recording and move to next phrase
+                                        if let Some(ref tts) = tts_service {
+                                            let _ = tts.announce_instruction("Target phrase captured. Processing...").await;
                                         }
                                         
-                                        if let Some(ref tts) = tts_service {
-                                            let _ = tts.announce_instruction("Target phrase detected. Recording in progress.").await;
-                                        }
+                                        // Process the recording immediately
+                                        match save_recording(&recording_state, &test_dir, &mut stt_service) {
+                                                Ok((filename, transcription)) => {
+                                                    println!("✅ Recording saved: {}", filename);
+                                                    
+                                                    // Store recording info for validation
+                                                    let full_path = test_dir.join(&filename).to_string_lossy().to_string();
+                                                    recording_state.set_last_recording(full_path.clone(), transcription.clone());
+                                                    
+                                                    // TTS feedback
+                                                    if let Some(ref tts) = tts_service {
+                                                        let _ = tts.announce_recording_success(&filename).await;
+                                                    }
+                                                    
+                                                    // Show transcription info for reference
+                                                    if let Some(ref actual) = transcription {
+                                                        let expected = &recording_state.phrase;
+                                                        let similarity = calculate_transcription_similarity(expected, actual);
+                                                        recording_state.validation_score = Some(similarity);
+                                                        
+                                                        println!("📝 Transcription: \"{}\"", actual);
+                                                        println!("🎯 Expected: \"{}\"", expected);
+                                                        println!("📈 Similarity: {:.1}%", similarity * 100.0);
+                                                    }
+                                                    
+                                                    // Start playback and decision flow
+                                                    recording_state.stop_recording();
+                                                    recording_state.start_decision_flow(full_path.clone());
+                                                    
+                                                    // Announce playback start
+                                                    if let Some(ref tts) = tts_service {
+                                                        let _ = tts.announce_playback_start().await;
+                                                    }
+                                                    
+                                                    // Play back the recording
+                                                    let playback_path = std::path::Path::new(&full_path);
+                                                    match playback_service.play_wav_file(playback_path) {
+                                                        Ok(_) => {
+                                                            println!("🔊 Playback completed. Review the recording quality.");
+                                                            
+                                                            // Request decision
+                                                            if let Some(ref tts) = tts_service {
+                                                                let _ = tts.announce_playback_decision_request().await;
+                                                            }
+                                                            
+                                                            println!("💬 Say 'accept recording' to keep it and move to the next phrase,");
+                                                            println!("   or say 'try again' to re-record this phrase.");
+                                                        }
+                                                        Err(e) => {
+                                                            println!("❌ Playback failed: {}", e);
+                                                            
+                                                            if let Some(ref tts) = tts_service {
+                                                                let _ = tts.announce_playback_error(&e.to_string()).await;
+                                                            }
+                                                            
+                                                            // Still allow decision even if playback failed
+                                                            println!("💬 Say 'accept recording' to keep it and move to the next phrase,");
+                                                            println!("   or say 'try again' to re-record this phrase.");
+                                                        }
+                                                    }
+                                                }
+                                                Err(e) => {
+                                                    println!("❌ Recording failed: {}", e);
+                                                    
+                                                    if let Some(ref tts) = tts_service {
+                                                        if e.to_string().contains("silence") {
+                                                            let _ = tts.announce_silence_detected(current_phrase_index + 1).await;
+                                                        } else {
+                                                            let _ = tts.announce_recording_failure(&e.to_string(), current_phrase_index + 1).await;
+                                                        }
+                                                    }
+                                                    
+                                                    recording_state.stop_recording();
+                                                }
+                                            }
+                                        // Note: Removed the else clause since we're no longer using extract_phrase_from_buffer
                                         continue;
                                     }
                                 }
@@ -352,116 +447,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             }
                                         }
                                         TestCommand::StopRecording => {
-                                            if recording_state.is_recording {
-                                                // Announce validation phase
-                                                if let Some(ref tts) = tts_service {
-                                                    let _ = tts.announce_phase_instructions("validation").await;
-                                                }
-                                                
-                                                match save_recording(&recording_state, &test_dir, &mut stt_service) {
-                                                    Ok((filename, transcription)) => {
-                                                        println!("✅ Recording saved: {}", filename);
-                                                        
-                                                        // Store recording info for validation
-                                                        let full_path = test_dir.join(&filename).to_string_lossy().to_string();
-                                                        recording_state.set_last_recording(full_path, transcription.clone());
-                                                        
-                                                        // TTS feedback
-                                                        if let Some(ref tts) = tts_service {
-                                                            let _ = tts.announce_recording_success(&filename).await;
-                                                        }
-                                                        
-                                                        // Auto-validate if transcription available
-                                                        if let Some(ref actual) = transcription {
-                                                            let expected = &recording_state.phrase;
-                                                            let similarity = calculate_transcription_similarity(expected, actual);
-                                                            recording_state.validation_score = Some(similarity);
-                                                            
-                                                            println!("📝 Transcription: \"{}\"", actual);
-                                                            println!("🎯 Expected: \"{}\"", expected);
-                                                            println!("📈 Similarity: {:.1}%", similarity * 100.0);
-                                                            
-                                                            let is_good = similarity >= 0.7; // Lowered threshold to account for improved algorithm
-                                                            if let Some(ref tts) = tts_service {
-                                                                let _ = tts.announce_validation_result(expected, actual, is_good).await;
-                                                            }
-                                                            
-                                                            if is_good {
-                                                                println!("✅ Good recording! Moving to next phrase.");
-                                                                recording_state.stop_recording();
-                                                                current_phrase_index += 1;
-                                                                
-                                                                if current_phrase_index < test_phrases.len() {
-                                                                    println!("🎯 Next phrase: #{} - \"{}\"", 
-                                                                             current_phrase_index + 1, 
-                                                                             &test_phrases[current_phrase_index]);
-                                                                    if let Some(ref tts) = tts_service {
-                                                                        if let Err(e) = tts.announce_phase_instructions("next_phrase").await {
-                                                                            println!("⚠️ TTS error: {}", e);
-                                                                        }
-                                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-                                                                        
-                                                                        if let Err(e) = tts.announce_progress(current_phrase_index, test_phrases.len()).await {
-                                                                            println!("⚠️ TTS error: {}", e);
-                                                                        }
-                                                                    }
-                                                                } else {
-                                                                    println!("🎉 All test phrases completed!");
-                                                                    if let Some(ref tts) = tts_service {
-                                                                        let _ = tts.announce_phase_instructions("completion").await;
-                                                                    }
-                                                                }
-                                                            } else {
-                                                                println!("⚠️ Recording doesn't match well enough (similarity: {:.1}%)", similarity * 100.0);
-                                                                println!("   Expected: \"{}\"", expected);
-                                                                println!("   Got: \"{}\"", actual);
-                                                                
-                                                                // Provide specific feedback on what went wrong
-                                                                let feedback = analyze_transcription_mismatch(expected, actual);
-                                                                println!("💡 Tip: {}", feedback);
-                                                                println!("   Please try again. Say 'start test recording next' to re-record this phrase.");
-                                                                
-                                                                if let Some(ref tts) = tts_service {
-                                                                    let _ = tts.announce_specific_guidance(expected, actual, &feedback).await;
-                                                                }
-                                                                
-                                                                // Don't advance to next phrase - stay on current one
-                                                                recording_state.stop_recording();
-                                                                // Don't increment current_phrase_index
-                                                            }
-                                                        } else {
-                                                            println!("⚠️ Could not transcribe recording for validation.");
-                                                            println!("   Please try again. Say 'start test recording next' to re-record this phrase.");
-                                                            
-                                                            if let Some(ref tts) = tts_service {
-                                                                let _ = tts.announce_transcription_failure(current_phrase_index + 1).await;
-                                                            }
-                                                            
-                                                            recording_state.stop_recording();
-                                                            // Don't increment current_phrase_index
-                                                        }
-                                                        }
-                                                    Err(e) => {
-                                                        println!("❌ Recording failed: {}", e);
-                                                        
-                                                        // Determine the type of failure and provide specific TTS feedback
-                                                        if let Some(ref tts) = tts_service {
-                                                            if e.to_string().contains("silence") {
-                                                                let _ = tts.announce_silence_detected(current_phrase_index + 1).await;
-                                                            } else {
-                                                                let _ = tts.announce_recording_failure(&e.to_string(), current_phrase_index + 1).await;
-                                                            }
-                                                        }
-                                                        
-                                                        recording_state.stop_recording();
-                                                        // Don't increment current_phrase_index - stay on current phrase
-                                                    }
-                                                }
-                                            } else {
-                                                println!("❌ No recording in progress");
-                                                if let Some(ref tts) = tts_service {
-                                                    let _ = tts.announce_error("No recording in progress").await;
-                                                }
+                                            println!("ℹ️ Manual stop recording is no longer needed!");
+                                            println!("   The system now automatically saves recordings when the target phrase is detected.");
+                                            println!("   Just say the target phrase and it will be captured and saved automatically.");
+                                            
+                                            if let Some(ref tts) = tts_service {
+                                                let _ = tts.announce_instruction("Manual stop recording is no longer needed. The system automatically saves recordings when the target phrase is detected.").await;
                                             }
                                         }
                                         TestCommand::ShowPhrases => {
@@ -584,6 +575,70 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 println!("❌ TTS service not available");
                                             }
                                         }
+                                        TestCommand::AcceptRecording => {
+                                            if recording_state.waiting_for_decision {
+                                                println!("✅ Recording accepted! Moving to next phrase.");
+                                                
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_recording_accepted().await;
+                                                }
+                                                
+                                                // Complete decision flow and move to next phrase
+                                                recording_state.complete_decision_flow();
+                                                current_phrase_index += 1;
+                                                
+                                                if current_phrase_index < test_phrases.len() {
+                                                    println!("🎯 Next phrase: #{} - \"{}\"", 
+                                                             current_phrase_index + 1, 
+                                                             &test_phrases[current_phrase_index]);
+                                                    if let Some(ref tts) = tts_service {
+                                                        if let Err(e) = tts.announce_phase_instructions("next_phrase").await {
+                                                            println!("⚠️ TTS error: {}", e);
+                                                        }
+                                                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                                                        
+                                                        if let Err(e) = tts.announce_progress(current_phrase_index, test_phrases.len()).await {
+                                                            println!("⚠️ TTS error: {}", e);
+                                                        }
+                                                    }
+                                                } else {
+                                                    println!("🎉 All test phrases completed!");
+                                                    if let Some(ref tts) = tts_service {
+                                                        let _ = tts.announce_phase_instructions("completion").await;
+                                                    }
+                                                }
+                                            } else {
+                                                println!("❌ No recording to accept. Please record a phrase first.");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error("No recording to accept. Please record a phrase first.").await;
+                                                }
+                                            }
+                                        }
+                                        TestCommand::TryAgain => {
+                                            if recording_state.waiting_for_decision {
+                                                println!("🔄 Recording rejected. Let's try again with the same phrase.");
+                                                
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_recording_retry().await;
+                                                }
+                                                
+                                                // Complete decision flow but stay on same phrase
+                                                recording_state.complete_decision_flow();
+                                                
+                                                // Show current phrase again
+                                                if current_phrase_index < test_phrases.len() {
+                                                    println!("🎯 Ready to re-record phrase #{}: \"{}\"", 
+                                                             current_phrase_index + 1, 
+                                                             &test_phrases[current_phrase_index]);
+                                                    println!("   Say 'start test recording next' when ready.");
+                                                }
+                                            } else {
+                                                println!("❌ No recording to retry. Please record a phrase first.");
+                                                if let Some(ref tts) = tts_service {
+                                                    let _ = tts.announce_error("No recording to retry. Please record a phrase first.").await;
+                                                }
+                                            }
+                                        }
                                         TestCommand::Quit => {
                                             println!("👋 Exiting test recorder...");
                                             return Ok(());
@@ -591,7 +646,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                                 } else {
                                     // No test command recognized - provide helpful guidance
-                                    if !recording_state.is_recording && !recording_state.waiting_for_phrase {
+                                    if recording_state.waiting_for_decision {
+                                        println!("💬 Waiting for your decision on the recording.");
+                                        println!("   Say 'accept recording' to keep it and move to the next phrase,");
+                                        println!("   or say 'try again' to re-record this phrase.");
+                                        
+                                        if let Some(ref tts) = tts_service {
+                                            let _ = tts.announce_instruction("Say 'accept recording' to keep it or 'try again' to re-record this phrase.").await;
+                                        }
+                                    } else if !recording_state.is_recording && !recording_state.waiting_for_phrase {
                                         println!("💡 Tip: To start recording, say 'start test recording next' or 'start recording with countdown'");
                                         println!("   Current phrase to record: #{} - \"{}\"", 
                                                  current_phrase_index + 1, 
@@ -635,6 +698,9 @@ struct RecordingState {
     phrase_detection_buffer: Vec<f32>,
     phrase_start_time: Option<Instant>,
     command_cooldown_until: Option<Instant>,
+    // New fields for playback and decision flow
+    waiting_for_decision: bool,
+    pending_recording_path: Option<String>,
 }
 
 impl RecordingState {
@@ -653,6 +719,8 @@ impl RecordingState {
             phrase_detection_buffer: Vec::new(),
             phrase_start_time: None,
             command_cooldown_until: None,
+            waiting_for_decision: false,
+            pending_recording_path: None,
         }
     }
     
@@ -680,6 +748,7 @@ impl RecordingState {
         self.segment_start = None;
         self.phrase_start_time = None;
         self.command_cooldown_until = None;
+        // Don't clear waiting_for_decision or pending_recording_path - needed for decision flow
     }
     
     fn set_last_recording(&mut self, path: String, transcription: Option<String>) {
@@ -698,6 +767,8 @@ impl RecordingState {
         self.phrase_detection_buffer.clear();
         self.phrase_start_time = None;
         self.command_cooldown_until = None;
+        self.waiting_for_decision = false;
+        self.pending_recording_path = None;
     }
     
     fn start_segment(&mut self, now: Instant) {
@@ -712,22 +783,16 @@ impl RecordingState {
     
     fn add_detection_samples(&mut self, samples: &[f32]) {
         self.phrase_detection_buffer.extend_from_slice(samples);
-        // Keep only the last 10 seconds for phrase detection
-        let max_samples = 10 * 16000; // 10 seconds at 16kHz
+        // Keep a longer buffer (20 seconds) to ensure we have enough pre-phrase context
+        // This gives us plenty of room for at least 1 second of pre-phrase audio plus the phrase itself
+        let max_samples = 20 * 16000; // 20 seconds at 16kHz
         if self.phrase_detection_buffer.len() > max_samples {
             let excess = self.phrase_detection_buffer.len() - max_samples;
             self.phrase_detection_buffer.drain(0..excess);
         }
     }
     
-    fn start_phrase_recording(&mut self, now: Instant) {
-        self.is_recording = true;
-        self.waiting_for_phrase = false;
-        self.start_time = Some(now);
-        self.phrase_start_time = Some(now);
-        // Clear the detection buffer and start fresh recording
-        self.audio_buffer.clear();
-    }
+
     
     fn is_in_command_cooldown(&self, now: Instant) -> bool {
         if let Some(cooldown_until) = self.command_cooldown_until {
@@ -735,6 +800,19 @@ impl RecordingState {
         } else {
             false
         }
+    }
+    
+    fn start_decision_flow(&mut self, recording_path: String) {
+        self.waiting_for_decision = true;
+        self.pending_recording_path = Some(recording_path);
+        // Set cooldown to avoid detecting the playback audio as commands
+        self.command_cooldown_until = Some(Instant::now() + Duration::from_millis(3000));
+    }
+    
+    fn complete_decision_flow(&mut self) {
+        self.waiting_for_decision = false;
+        self.pending_recording_path = None;
+        self.command_cooldown_until = None;
     }
 }
 
@@ -752,6 +830,8 @@ enum TestCommand {
     ShowRecordingTips,
     TestTTS,
     SkipTo(usize),
+    AcceptRecording,
+    TryAgain,
     Quit,
 }
 
@@ -793,6 +873,10 @@ fn parse_test_command(text: &str) -> Option<TestCommand> {
             }
         }
         None
+    } else if text.contains("accept recording") {
+        Some(TestCommand::AcceptRecording)
+    } else if text.contains("try again") {
+        Some(TestCommand::TryAgain)
     } else if text.contains("quit test recorder") {
         Some(TestCommand::Quit)
     } else {
@@ -805,8 +889,8 @@ fn save_recording(state: &RecordingState, test_dir: &Path, stt_service: &mut STT
         return Err("No audio data to save".into());
     }
     
-    // Trim silence from beginning and end
-    let trimmed_audio = trim_silence(&state.audio_buffer, 0.01, 0.1);
+    // Trim silence from beginning and end with gentler parameters
+    let trimmed_audio = trim_silence(&state.audio_buffer, 0.005, 0.15);
     
     if trimmed_audio.is_empty() {
         return Err("Audio contains only silence".into());
@@ -1045,9 +1129,9 @@ fn transcribe_audio_file(filepath: &std::path::Path, stt_service: &mut STTServic
         }
     };
     
-    // Convert to f32 samples
+    // Convert to f32 samples - use same scaling as when saving
     let samples: Result<Vec<f32>, _> = reader.samples::<i16>()
-        .map(|s| s.map(|sample| sample as f32 / 32768.0))
+        .map(|s| s.map(|sample| sample as f32 / 32767.0))
         .collect();
     
     let audio_samples = match samples {
@@ -1366,15 +1450,17 @@ fn phrase_detected_in_transcription(transcription: &str, target_phrase: &str) ->
     }
     
     // Look for the target phrase as a sequence in the transcription
-    for i in 0..=transcription_words.len().saturating_sub(target_words.len()) {
+    if target_words.len() > transcription_words.len() {
+        return false; // Target phrase is longer than transcription, can't match
+    }
+    
+    for i in 0..=transcription_words.len() - target_words.len() {
         let window = &transcription_words[i..i + target_words.len()];
         let mut matches = 0;
         
         for (j, target_word) in target_words.iter().enumerate() {
-            if j < window.len() {
-                if window[j] == *target_word || words_are_similar(window[j], target_word) {
-                    matches += 1;
-                }
+            if window[j] == *target_word || words_are_similar(window[j], target_word) {
+                matches += 1;
             }
         }
         
@@ -1387,12 +1473,91 @@ fn phrase_detected_in_transcription(transcription: &str, target_phrase: &str) ->
     false
 }
 
+/// Extract the phrase portion from the detection buffer with enhanced padding
+/// Ensures at least 1 full second of audio before the phrase begins
+fn extract_phrase_from_buffer_with_padding(buffer: &[f32], transcription: &str, target_phrase: &str) -> Option<Vec<f32>> {
+    if buffer.is_empty() {
+        return None;
+    }
+    
+    debug!("Extracting phrase with padding from buffer: {} samples ({:.2}s), transcription: '{}', target: '{}'", 
+           buffer.len(), buffer.len() as f32 / 16000.0, transcription, target_phrase);
+    
+    let transcription_words: Vec<&str> = transcription.split_whitespace().collect();
+    let target_words: Vec<&str> = target_phrase.split_whitespace().collect();
+    
+    if target_words.is_empty() {
+        return None;
+    }
+    
+    // Estimate the duration of the target phrase more generously
+    // Assume slower speaking rate of 120 words per minute (2 words per second) for more conservative estimation
+    let estimated_phrase_duration_s = target_words.len() as f32 / 2.0;
+    let estimated_phrase_samples = (estimated_phrase_duration_s * 16000.0) as usize;
+    
+    // Ensure we have at least 1 full second of pre-phrase audio as requested
+    let pre_phrase_padding_samples = 16000; // 1 second at 16kHz
+    
+    // Add generous post-phrase padding to capture the full phrase
+    let post_phrase_padding_samples = (0.5 * 16000.0) as usize; // 0.5 seconds after
+    
+    let total_samples = pre_phrase_padding_samples + estimated_phrase_samples + post_phrase_padding_samples;
+    
+    // Don't extract more than the buffer size, but be generous
+    let extraction_samples = total_samples.min(buffer.len());
+    
+    // Extract from the end of the buffer to get the most recent audio including the detected phrase
+    let start_idx = buffer.len().saturating_sub(extraction_samples);
+    let phrase_audio = buffer[start_idx..].to_vec();
+    
+    debug!("Extracted {} samples from buffer (estimated phrase: {}, with 1s pre-padding + 0.5s post-padding: {})", 
+           phrase_audio.len(), estimated_phrase_samples, total_samples);
+    
+    // Apply volume normalization to boost quiet audio
+    let normalized_audio = normalize_audio_volume(&phrase_audio);
+    debug!("Applied volume normalization");
+    
+    // Ensure minimum duration to guarantee we have enough pre-phrase context
+    // Set minimum to 2.5 seconds to ensure we have at least 1s pre-phrase + phrase + 0.5s post
+    let min_duration_samples = (2.5 * 16000.0) as usize;
+    let padded_audio = if normalized_audio.len() < min_duration_samples {
+        debug!("Audio too short ({} samples), padding to {} samples to ensure pre-phrase context", 
+               normalized_audio.len(), min_duration_samples);
+        pad_audio_with_pre_phrase_emphasis(&normalized_audio, min_duration_samples)
+    } else {
+        normalized_audio
+    };
+    
+    // Apply very gentle silence trimming, but preserve the pre-phrase padding
+    let trimmed = trim_silence_preserving_pre_phrase(&padded_audio, 0.001, 0.3);
+    
+    debug!("After gentle trimming with pre-phrase preservation: {} samples ({:.2}s)", 
+           trimmed.len(), trimmed.len() as f32 / 16000.0);
+    
+    // Final safety check - ensure we still have adequate duration
+    let final_min_samples = (2.0 * 16000.0) as usize; // 2 seconds absolute minimum
+    let final_audio = if trimmed.len() < final_min_samples {
+        debug!("Trimmed audio still too short ({} samples), using padded version to preserve context", trimmed.len());
+        padded_audio
+    } else {
+        trimmed
+    };
+    
+    debug!("Final phrase audio with padding: {} samples ({:.2}s)", 
+           final_audio.len(), final_audio.len() as f32 / 16000.0);
+    
+    Some(final_audio)
+}
+
 /// Extract the phrase portion from the detection buffer
 /// This is a simplified version - in a full implementation, we'd use word timestamps
 fn extract_phrase_from_buffer(buffer: &[f32], transcription: &str, target_phrase: &str) -> Option<Vec<f32>> {
     if buffer.is_empty() {
         return None;
     }
+    
+    debug!("Extracting phrase from buffer: {} samples, transcription: '{}', target: '{}'", 
+           buffer.len(), transcription, target_phrase);
     
     // For now, we'll extract the last portion of the buffer that likely contains the phrase
     // In a more sophisticated implementation, we'd use word timestamps to get exact boundaries
@@ -1404,27 +1569,337 @@ fn extract_phrase_from_buffer(buffer: &[f32], transcription: &str, target_phrase
         return None;
     }
     
-    // Estimate the duration of the target phrase
-    // Assume average speaking rate of 150 words per minute (2.5 words per second)
-    let estimated_phrase_duration_s = target_words.len() as f32 / 2.5;
+    // Estimate the duration of the target phrase more generously
+    // Assume slower speaking rate of 100 words per minute (1.67 words per second) for more conservative estimation
+    let estimated_phrase_duration_s = target_words.len() as f32 / 1.67;
     let estimated_samples = (estimated_phrase_duration_s * 16000.0) as usize;
     
-    // Add some padding around the phrase
-    let padding_samples = (0.5 * 16000.0) as usize; // 0.5 second padding on each side
+    // Add very generous padding around the phrase to avoid cutting off speech
+    // Increase padding to 2 seconds on each side to ensure we capture everything
+    let padding_samples = (2.0 * 16000.0) as usize; // 2 seconds padding on each side
     let total_samples = estimated_samples + (2 * padding_samples);
     
+    // Don't extract more than the buffer size, but be generous
+    let extraction_samples = total_samples.min(buffer.len());
+    
     // Extract from the end of the buffer
-    let start_idx = buffer.len().saturating_sub(total_samples);
+    let start_idx = buffer.len().saturating_sub(extraction_samples);
     let phrase_audio = buffer[start_idx..].to_vec();
     
-    // Apply more aggressive silence trimming for cleaner phrase extraction
-    let trimmed = trim_silence(&phrase_audio, 0.005, 0.05);
+    debug!("Extracted {} samples from buffer (estimated: {}, with padding: {})", 
+           phrase_audio.len(), estimated_samples, total_samples);
     
-    if trimmed.is_empty() {
-        None
+    // Apply volume normalization to boost quiet audio
+    let normalized_audio = normalize_audio_volume(&phrase_audio);
+    debug!("Applied volume normalization");
+    
+    // Ensure minimum duration FIRST, before trimming
+    let min_duration_samples = (2.0 * 16000.0) as usize; // 2 seconds minimum for safety
+    let padded_audio = if normalized_audio.len() < min_duration_samples {
+        debug!("Audio too short ({} samples), padding to {} samples BEFORE trimming", normalized_audio.len(), min_duration_samples);
+        pad_audio_to_minimum_duration(&normalized_audio, min_duration_samples)
     } else {
-        Some(trimmed)
+        normalized_audio
+    };
+    
+    // Now apply very gentle silence trimming to the padded audio
+    // Use extremely conservative parameters to avoid over-trimming
+    let trimmed = trim_silence_gentle(&padded_audio, 0.001, 0.5); // Even more gentle
+    
+    debug!("After gentle trimming: {} samples ({:.2}s)", trimmed.len(), trimmed.len() as f32 / 16000.0);
+    
+    // Final safety check - ensure we still have minimum duration after trimming
+    let final_min_samples = (1.5 * 16000.0) as usize; // 1.5 seconds absolute minimum
+    let final_audio = if trimmed.len() < final_min_samples {
+        debug!("Trimmed audio still too short ({} samples), using padded version", trimmed.len());
+        // Return the padded version without trimming if trimming made it too short
+        padded_audio
+    } else {
+        trimmed
+    };
+    
+    debug!("Final audio: {} samples ({:.2}s)", final_audio.len(), final_audio.len() as f32 / 16000.0);
+    
+    Some(final_audio)
+}
+
+/// Process audio for saving - applies the same pipeline as extract_phrase_from_buffer but to seg_audio
+fn process_audio_for_saving(seg_audio: &[f32]) -> Vec<f32> {
+    debug!("Processing seg_audio for saving: {} samples", seg_audio.len());
+    
+    // Apply volume normalization to boost quiet audio
+    let normalized_audio = normalize_audio_volume(seg_audio);
+    debug!("Applied volume normalization to seg_audio");
+    
+    // Ensure minimum duration FIRST, before trimming
+    let min_duration_samples = (2.0 * 16000.0) as usize; // 2 seconds minimum for safety
+    let padded_audio = if normalized_audio.len() < min_duration_samples {
+        debug!("Seg_audio too short ({} samples), padding to {} samples BEFORE trimming", normalized_audio.len(), min_duration_samples);
+        pad_audio_to_minimum_duration(&normalized_audio, min_duration_samples)
+    } else {
+        normalized_audio
+    };
+    
+    // Now apply very gentle silence trimming to the padded audio
+    // Use extremely conservative parameters to avoid over-trimming
+    let trimmed = trim_silence_gentle(&padded_audio, 0.001, 0.5); // Even more gentle
+    
+    debug!("After gentle trimming seg_audio: {} samples ({:.2}s)", trimmed.len(), trimmed.len() as f32 / 16000.0);
+    
+    // Final safety check - ensure we still have minimum duration after trimming
+    let final_min_samples = (1.5 * 16000.0) as usize; // 1.5 seconds absolute minimum
+    let final_audio = if trimmed.len() < final_min_samples {
+        debug!("Trimmed seg_audio still too short ({} samples), using padded version", trimmed.len());
+        // Return the padded version without trimming if trimming made it too short
+        padded_audio
+    } else {
+        trimmed
+    };
+    
+    debug!("Final processed seg_audio: {} samples ({:.2}s)", final_audio.len(), final_audio.len() as f32 / 16000.0);
+    
+    final_audio
+}
+
+/// Normalize audio volume to improve transcription quality
+fn normalize_audio_volume(audio: &[f32]) -> Vec<f32> {
+    if audio.is_empty() {
+        return Vec::new();
     }
+    
+    // Find the maximum absolute amplitude
+    let max_amplitude = audio.iter()
+        .map(|&sample| sample.abs())
+        .fold(0.0f32, f32::max);
+    
+    if max_amplitude == 0.0 {
+        return audio.to_vec(); // Avoid division by zero
+    }
+    
+    // Target amplitude (leave some headroom to avoid clipping)
+    let target_amplitude = 0.8;
+    let gain = target_amplitude / max_amplitude;
+    
+    // Apply gain but limit to reasonable boost (max 10x)
+    let limited_gain = gain.min(10.0);
+    
+    debug!("Audio normalization: max_amplitude={:.4}, gain={:.2}", max_amplitude, limited_gain);
+    
+    // Apply the gain
+    audio.iter()
+        .map(|&sample| (sample * limited_gain).clamp(-1.0, 1.0))
+        .collect()
+}
+
+/// Gentle silence trimming that preserves pre-phrase context
+fn trim_silence_preserving_pre_phrase(audio: &[f32], silence_threshold: f32, min_silence_duration: f32) -> Vec<f32> {
+    if audio.is_empty() {
+        return Vec::new();
+    }
+    
+    let min_silence_samples = (min_silence_duration * 16000.0) as usize;
+    let window_size = 480; // 30ms at 16kHz
+    
+    // For pre-phrase preservation, we're more conservative about trimming from the start
+    // Find start of speech but keep more context before it
+    let mut start_idx = 0;
+    let mut consecutive_silence_samples = 0;
+    
+    for i in (0..audio.len()).step_by(window_size) {
+        let end = (i + window_size).min(audio.len());
+        let window = &audio[i..end];
+        let energy = window.iter().map(|s| s * s).sum::<f32>() / window.len() as f32;
+        
+        if energy > silence_threshold {
+            // Found speech - keep much more silence before it to preserve pre-phrase context
+            // Keep at least 1 second of pre-phrase audio if available
+            let pre_phrase_samples = (1.0 * 16000.0) as usize; // 1 second
+            let silence_to_keep = pre_phrase_samples.min(consecutive_silence_samples);
+            start_idx = i.saturating_sub(silence_to_keep);
+            break;
+        }
+        consecutive_silence_samples += window_size;
+    }
+    
+    // Find end of speech with standard conservative approach
+    let mut end_idx = audio.len();
+    consecutive_silence_samples = 0;
+    
+    for i in (0..audio.len()).step_by(window_size).rev() {
+        let end = (i + window_size).min(audio.len());
+        let window = &audio[i..end];
+        let energy = window.iter().map(|s| s * s).sum::<f32>() / window.len() as f32;
+        
+        if energy > silence_threshold {
+            // Found speech - keep some silence after it
+            let silence_to_keep = (min_silence_samples / 2).min(consecutive_silence_samples);
+            end_idx = (end + silence_to_keep).min(audio.len());
+            break;
+        }
+        consecutive_silence_samples += window_size;
+    }
+    
+    if start_idx >= end_idx {
+        // If no speech found, return most of the audio to preserve context
+        let trim_amount = audio.len() / 20; // Only trim 5% from each end
+        let start = trim_amount;
+        let end = audio.len().saturating_sub(trim_amount);
+        if start < end {
+            return audio[start..end].to_vec();
+        } else {
+            return audio.to_vec();
+        }
+    }
+    
+    // Ensure we don't trim too aggressively - keep at least 90% of original audio for pre-phrase preservation
+    let min_keep_samples = (audio.len() * 9) / 10; // 90% of original
+    let trimmed_length = end_idx - start_idx;
+    
+    if trimmed_length < min_keep_samples {
+        debug!("Trimming would remove too much audio for pre-phrase preservation ({} -> {} samples), keeping more", 
+               audio.len(), trimmed_length);
+        // Expand the boundaries to keep more audio, especially at the start
+        let expand_amount = (min_keep_samples - trimmed_length) / 2;
+        start_idx = start_idx.saturating_sub(expand_amount);
+        end_idx = (end_idx + expand_amount).min(audio.len());
+    }
+    
+    debug!("Pre-phrase preserving trim: kept {} samples from {} (start_idx: {}, end_idx: {})", 
+           end_idx - start_idx, audio.len(), start_idx, end_idx);
+    
+    audio[start_idx..end_idx].to_vec()
+}
+
+/// Gentle silence trimming that preserves speech boundaries
+fn trim_silence_gentle(audio: &[f32], silence_threshold: f32, min_silence_duration: f32) -> Vec<f32> {
+    if audio.is_empty() {
+        return Vec::new();
+    }
+    
+    let min_silence_samples = (min_silence_duration * 16000.0) as usize;
+    let window_size = 480; // 30ms at 16kHz (even larger window for more stable detection)
+    
+    // Find start of speech with extremely conservative approach
+    let mut start_idx = 0;
+    let mut consecutive_silence_samples = 0;
+    
+    for i in (0..audio.len()).step_by(window_size) {
+        let end = (i + window_size).min(audio.len());
+        let window = &audio[i..end];
+        let energy = window.iter().map(|s| s * s).sum::<f32>() / window.len() as f32;
+        
+        if energy > silence_threshold {
+            // Found speech - keep much more silence before it (50% of minimum silence)
+            let silence_to_keep = (min_silence_samples / 2).min(consecutive_silence_samples);
+            start_idx = i.saturating_sub(silence_to_keep);
+            break;
+        }
+        consecutive_silence_samples += window_size;
+    }
+    
+    // Find end of speech with extremely conservative approach
+    let mut end_idx = audio.len();
+    consecutive_silence_samples = 0;
+    
+    for i in (0..audio.len()).step_by(window_size).rev() {
+        let end = (i + window_size).min(audio.len());
+        let window = &audio[i..end];
+        let energy = window.iter().map(|s| s * s).sum::<f32>() / window.len() as f32;
+        
+        if energy > silence_threshold {
+            // Found speech - keep much more silence after it (50% of minimum silence)
+            let silence_to_keep = (min_silence_samples / 2).min(consecutive_silence_samples);
+            end_idx = (end + silence_to_keep).min(audio.len());
+            break;
+        }
+        consecutive_silence_samples += window_size;
+    }
+    
+    if start_idx >= end_idx {
+        // If no speech found, return most of the audio (only trim 10% from each end)
+        let trim_amount = audio.len() / 10;
+        let start = trim_amount;
+        let end = audio.len().saturating_sub(trim_amount);
+        if start < end {
+            return audio[start..end].to_vec();
+        } else {
+            // If even that fails, return the whole audio
+            return audio.to_vec();
+        }
+    }
+    
+    // Ensure we don't trim too aggressively - keep at least 80% of original audio
+    let min_keep_samples = (audio.len() * 8) / 10; // 80% of original
+    let trimmed_length = end_idx - start_idx;
+    
+    if trimmed_length < min_keep_samples {
+        debug!("Trimming would remove too much audio ({} -> {} samples), keeping more", audio.len(), trimmed_length);
+        // Expand the boundaries to keep more audio
+        let expand_amount = (min_keep_samples - trimmed_length) / 2;
+        start_idx = start_idx.saturating_sub(expand_amount);
+        end_idx = (end_idx + expand_amount).min(audio.len());
+    }
+    
+    audio[start_idx..end_idx].to_vec()
+}
+
+/// Pad audio to minimum duration by adding silence with emphasis on pre-phrase padding
+fn pad_audio_with_pre_phrase_emphasis(audio: &[f32], min_samples: usize) -> Vec<f32> {
+    if audio.len() >= min_samples {
+        return audio.to_vec();
+    }
+    
+    let padding_needed = min_samples - audio.len();
+    // Emphasize pre-phrase padding: 60% before, 40% after to ensure good pre-phrase context
+    let padding_before = (padding_needed * 6) / 10; // 60% padding before
+    let padding_after = padding_needed - padding_before; // 40% padding after
+    
+    let mut padded = Vec::with_capacity(min_samples);
+    
+    // Add silence before (more emphasis on pre-phrase context)
+    padded.extend(vec![0.0; padding_before]);
+    
+    // Add original audio
+    padded.extend_from_slice(audio);
+    
+    // Add silence after
+    padded.extend(vec![0.0; padding_after]);
+    
+    debug!("Padded audio with pre-phrase emphasis from {} to {} samples ({:.2}s before, {:.2}s after)", 
+           audio.len(), padded.len(),
+           padding_before as f32 / 16000.0,
+           padding_after as f32 / 16000.0);
+    
+    padded
+}
+
+/// Pad audio to minimum duration by adding silence
+fn pad_audio_to_minimum_duration(audio: &[f32], min_samples: usize) -> Vec<f32> {
+    if audio.len() >= min_samples {
+        return audio.to_vec();
+    }
+    
+    let padding_needed = min_samples - audio.len();
+    let padding_before = padding_needed / 4; // 25% padding before
+    let padding_after = padding_needed - padding_before; // 75% padding after
+    
+    let mut padded = Vec::with_capacity(min_samples);
+    
+    // Add silence before
+    padded.extend(vec![0.0; padding_before]);
+    
+    // Add original audio
+    padded.extend_from_slice(audio);
+    
+    // Add silence after
+    padded.extend(vec![0.0; padding_after]);
+    
+    debug!("Padded audio from {} to {} samples ({}s before, {}s after)", 
+           audio.len(), padded.len(),
+           padding_before as f32 / 16000.0,
+           padding_after as f32 / 16000.0);
+    
+    padded
 }
 
 fn init_logging() {
@@ -1526,10 +2001,84 @@ mod tests {
         
         let extracted_audio = extracted.unwrap();
         assert!(!extracted_audio.is_empty());
-        assert!(extracted_audio.len() < buffer.len()); // Should be shorter than original
+        
+        // Should be at least 1.5 seconds (minimum duration)
+        let min_samples = (1.5 * 16000.0) as usize;
+        assert!(extracted_audio.len() >= min_samples, 
+               "Extracted audio should be at least {} samples but was {}", 
+               min_samples, extracted_audio.len());
         
         // Test with empty buffer
         let empty_extracted = extract_phrase_from_buffer(&[], "enable vad", "enable vad");
         assert!(empty_extracted.is_none());
+    }
+
+    #[test]
+    fn test_phrase_extraction_with_padding() {
+        // Create a mock buffer with some audio (5 seconds to test pre-phrase padding)
+        let buffer: Vec<f32> = (0..16000*5).map(|i| (i as f32 * 0.001).sin()).collect(); // 5 seconds of sine wave
+        
+        // Test extraction with padding
+        let extracted = extract_phrase_from_buffer_with_padding(&buffer, "enable vad", "enable vad");
+        assert!(extracted.is_some());
+        
+        let extracted_audio = extracted.unwrap();
+        assert!(!extracted_audio.is_empty());
+        
+        // Should be at least 2.5 seconds (minimum duration with pre-phrase padding)
+        let min_samples = (2.5 * 16000.0) as usize;
+        assert!(extracted_audio.len() >= min_samples, 
+               "Extracted audio with padding should be at least {} samples but was {}", 
+               min_samples, extracted_audio.len());
+        
+        // Test with short buffer - should still work with padding
+        let short_buffer: Vec<f32> = (0..16000).map(|i| (i as f32 * 0.001).sin()).collect(); // 1 second
+        let short_extracted = extract_phrase_from_buffer_with_padding(&short_buffer, "enable vad", "enable vad");
+        assert!(short_extracted.is_some());
+        
+        let short_extracted_audio = short_extracted.unwrap();
+        // Should be padded to at least 2 seconds (final minimum after trimming)
+        let final_min_samples = (2.0 * 16000.0) as usize;
+        assert!(short_extracted_audio.len() >= final_min_samples, 
+               "Short audio should be padded to at least {} samples but was {}", 
+               final_min_samples, short_extracted_audio.len());
+        
+        // Test with empty buffer
+        let empty_extracted = extract_phrase_from_buffer_with_padding(&[], "enable vad", "enable vad");
+        assert!(empty_extracted.is_none());
+    }
+
+    #[test]
+    fn test_audio_normalization() {
+        // Test with quiet audio
+        let quiet_audio: Vec<f32> = vec![0.01, -0.01, 0.02, -0.02]; // Very quiet
+        let normalized = normalize_audio_volume(&quiet_audio);
+        
+        // Should be louder after normalization
+        let max_original = quiet_audio.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
+        let max_normalized = normalized.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
+        assert!(max_normalized > max_original);
+        
+        // Test with empty audio
+        let empty_normalized = normalize_audio_volume(&[]);
+        assert!(empty_normalized.is_empty());
+    }
+
+    #[test]
+    fn test_audio_padding() {
+        let short_audio = vec![0.1, -0.1, 0.2, -0.2]; // Very short audio
+        let min_samples = 1000;
+        
+        let padded = pad_audio_to_minimum_duration(&short_audio, min_samples);
+        assert_eq!(padded.len(), min_samples);
+        
+        // Original audio should be in the middle somewhere
+        assert!(padded.contains(&0.1));
+        assert!(padded.contains(&-0.1));
+        
+        // Test with already long enough audio
+        let long_audio = vec![0.1; 2000];
+        let not_padded = pad_audio_to_minimum_duration(&long_audio, min_samples);
+        assert_eq!(not_padded.len(), 2000); // Should remain unchanged
     }
 }

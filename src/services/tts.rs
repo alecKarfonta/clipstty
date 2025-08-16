@@ -4,12 +4,15 @@ use std::sync::{Arc, Mutex};
 use std::process::Command;
 use tracing::{info, error, debug};
 use tts::Tts;
+use tokio::sync::Mutex as AsyncMutex;
 
 /// TTS service for providing audio feedback
 pub struct TTSService {
     tts: Option<Arc<Mutex<Tts>>>,
     enabled: bool,
     use_native_macos: bool,
+    // Async mutex to serialize all TTS operations
+    tts_lock: Arc<AsyncMutex<()>>,
 }
 
 impl TTSService {
@@ -36,6 +39,7 @@ impl TTSService {
                 tts: None, // Don't need the tts crate on macOS
                 enabled: true,
                 use_native_macos: true,
+                tts_lock: Arc::new(AsyncMutex::new(())),
             })
         } else {
             let mut tts = Tts::default()?;
@@ -67,6 +71,7 @@ impl TTSService {
                 tts: Some(Arc::new(Mutex::new(tts))),
                 enabled: true,
                 use_native_macos: false,
+                tts_lock: Arc::new(AsyncMutex::new(())),
             })
         }
     }
@@ -93,17 +98,37 @@ impl TTSService {
             return Ok(());
         }
 
+        // Acquire the TTS lock to serialize all TTS operations
+        let _lock = self.tts_lock.lock().await;
+
         info!("TTS speaking (non-blocking): {}", text);
         
         if self.use_native_macos {
-            // For non-blocking on macOS, spawn the say command in background
-            let text_clone = text.to_string();
-            tokio::spawn(async move {
-                let _ = Command::new("say")
-                    .arg(&text_clone)
-                    .output();
-            });
-            info!("TTS successfully started speaking: {}", text);
+            // For non-blocking on macOS, use the same blocking approach to avoid overlap
+            let result = tokio::task::spawn_blocking({
+                let text = text.to_string();
+                move || {
+                    Command::new("say")
+                        .arg(&text)
+                        .output()
+                }
+            }).await?;
+            
+            match result {
+                Ok(output) => {
+                    if output.status.success() {
+                        info!("TTS successfully completed speaking: {}", text);
+                    } else {
+                        let error_msg = String::from_utf8_lossy(&output.stderr);
+                        error!("TTS speak error: {}", error_msg);
+                        return Err(format!("TTS speak failed: {}", error_msg).into());
+                    }
+                }
+                Err(e) => {
+                    error!("TTS speak error: {}", e);
+                    return Err(e.into());
+                }
+            }
         } else if let Some(ref tts_arc) = self.tts {
             let mut tts_guard = tts_arc.lock().unwrap();
             match tts_guard.speak(text, false) {
@@ -128,6 +153,9 @@ impl TTSService {
             debug!("TTS disabled, skipping: {}", text);
             return Ok(());
         }
+
+        // Acquire the TTS lock to serialize all TTS operations
+        let _lock = self.tts_lock.lock().await;
 
         info!("TTS speaking and waiting: {}", text);
         
@@ -276,7 +304,7 @@ impl TTSService {
 
     /// Announce that we're about to begin recording
     pub async fn announce_recording_beginning(&self) -> Result<(), Box<dyn std::error::Error>> {
-        let message = "Beginning test recording session. I will guide you through each step.";
+        let message = "Beginning test recording session.";
         self.speak_and_wait(message).await
     }
 
@@ -387,6 +415,32 @@ impl TTSService {
     /// Announce specific guidance based on transcription mismatch
     pub async fn announce_specific_guidance(&self, expected: &str, actual: &str, guidance: &str) -> Result<(), Box<dyn std::error::Error>> {
         let message = format!("Expected '{}', but heard '{}'. {}. Please try again.", expected, actual, guidance);
+        self.speak_and_wait(&message).await
+    }
+
+    /// Announce that playback is starting
+    pub async fn announce_playback_start(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.speak_and_wait("Playing back your recording. Listen carefully to check the quality.").await
+    }
+
+    /// Announce playback completion and request decision
+    pub async fn announce_playback_decision_request(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.speak_and_wait("Playback complete. Say 'accept recording' to keep it and move to the next phrase, or say 'try again' to re-record this phrase.").await
+    }
+
+    /// Announce recording accepted
+    pub async fn announce_recording_accepted(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.speak_and_wait("Recording accepted. Moving to next phrase.").await
+    }
+
+    /// Announce recording rejected and retry
+    pub async fn announce_recording_retry(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.speak_and_wait("Recording rejected. Let's try again. Get ready to record the same phrase.").await
+    }
+
+    /// Announce playback error
+    pub async fn announce_playback_error(&self, error: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let message = format!("Playback failed: {}. The recording was still saved.", error);
         self.speak_and_wait(&message).await
     }
 }

@@ -5,7 +5,7 @@ use std::time::Instant;
 use tracing::{info, warn, debug, error};
 
 #[cfg(feature = "local-stt")]
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, install_logging_hooks};
 
 /// Backend interface for STT engines
 pub trait STTBackend {
@@ -22,6 +22,9 @@ struct LocalWhisperBackend {
 #[cfg(feature = "local-stt")]
 impl LocalWhisperBackend {
     fn new(cfg: &STTConfig) -> Result<Self> {
+        // Suppress verbose whisper.cpp logging output
+        install_logging_hooks();
+
         // Styled log helpers
         const C_CLASS: &str = "\x1b[35m"; // magenta
         const C_FUNC: &str = "\x1b[36m"; // cyan
@@ -58,11 +61,7 @@ impl LocalWhisperBackend {
         };
         if use_gpu { ctx_params.use_gpu(true); }
 
-        info!(target: "stt", "[{}LocalWhisperBackend{}].{}new{} {}model_path{}={}{}{}, {}use_gpu{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, model_path, C_RESET,
-            C_VAR, C_RESET, C_VAL, use_gpu, C_RESET,
-        );
+        info!(target: "stt", "Whisper backend initialized: model={}, gpu={}", model_path, use_gpu);
 
         let ctx = WhisperContext::new_with_params(&model_path, ctx_params).map_err(|e| {
             crate::core::error::STTError::ModelLoad(format!(
@@ -85,19 +84,7 @@ impl LocalWhisperBackend {
 impl STTBackend for LocalWhisperBackend {
     fn transcribe(&mut self, audio: &[AudioSample], cfg: &STTConfig, model: &str) -> Result<STTResult> {
         let start_time = Instant::now();
-
-        // Styled log helpers
-        const C_CLASS: &str = "\x1b[35m"; // magenta
-        const C_FUNC: &str = "\x1b[36m"; // cyan
-        const C_VAR: &str = "\x1b[33m"; // yellow
-        const C_VAL: &str = "\x1b[32m"; // green
-        const C_RESET: &str = "\x1b[0m";
-
-        debug!(target: "stt", "[{}LocalWhisperBackend{}].{}transcribe{} {}model_path{}={}{}{}, {}model{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, self.model_path, C_RESET,
-            C_VAR, C_RESET, C_VAL, model, C_RESET,
-        );
+        debug!(target: "stt", "Starting transcription: {} samples", audio.len());
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         let threads = std::env::var("WHISPER_THREADS")
@@ -106,25 +93,23 @@ impl STTBackend for LocalWhisperBackend {
             .filter(|&n| n > 0)
             .unwrap_or(num_cpus::get() as i32);
         params.set_n_threads(threads);
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} {}threads{}={}{}{}, {}language{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, threads, C_RESET,
-            C_VAR, C_RESET, C_VAL, if cfg.language.is_empty() { "auto" } else { &cfg.language }, C_RESET,
+        
+        // Suppress verbose output from whisper
+        params.set_print_progress(false);
+        params.set_print_realtime(false);
+        params.set_print_timestamps(false);
+        debug!(target: "stt", "Transcription config: threads={}, language={}", 
+            threads, 
+            if cfg.language.is_empty() { "auto" } else { &cfg.language }
         );
         params.set_translate(false);
         // Force English by default to avoid language auto-detection overhead unless overridden
         let lang = if cfg.language.is_empty() { "en" } else { cfg.language.as_str() };
         params.set_language(Some(lang));
 
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} {}audio_len{}={}{}{} samples",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, audio.len(), C_RESET
-        );
+
         if let Err(e) = self.state.full(params, audio) {
-            error!(target: "stt", "[{}STTService{}].{}transcribe{} {}error{}={}{}{}",
-                C_CLASS, C_RESET, C_FUNC, C_RESET,
-                C_VAR, C_RESET, C_VAL, e, C_RESET
-            );
+            error!(target: "stt", "Whisper processing failed: {}", e);
             return Err(crate::core::error::STTError::Processing(format!("Whisper processing failed: {}", e)).into());
         }
 
@@ -150,15 +135,7 @@ impl STTBackend for LocalWhisperBackend {
         let audio_sec = (audio.len() as f64) / 16000.0_f64;
         let wall_sec = (processing_ms as f64) / 1000.0_f64;
         let rtf = if audio_sec > 0.0 { wall_sec / audio_sec } else { 0.0 };
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} completed {}backend{}={}{}{}, {}model{}={}{}{}, {}duration_ms{}={}{}{}, {}audio_s{}={}{}{}, {}wall_s{}={}{}{}, {}rtf{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, "local", C_RESET,
-            C_VAR, C_RESET, C_VAL, model, C_RESET,
-            C_VAR, C_RESET, C_VAL, processing_ms, C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", audio_sec), C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", wall_sec), C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", rtf), C_RESET,
-        );
+        debug!(target: "stt", "Transcription completed: {}ms (RTF: {:.2}x)", processing_ms, rtf);
 
         Ok(STTResult::new(text, 1.0, model.to_string(), "local".to_string()).with_processing_time(processing_ms))
     }

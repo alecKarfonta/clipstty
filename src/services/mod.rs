@@ -1,6 +1,7 @@
 //! Services module containing the core business logic services.
 
 pub mod audio;
+pub mod audio_playback;
 pub mod clipboard;
 pub mod hotkey;
 pub mod paste;
@@ -19,6 +20,7 @@ pub mod transcript_storage;
 pub mod transcription_manager;
 
 pub use audio::AudioService;
+pub use audio_playback::AudioPlaybackService;
 pub use clipboard::ClipboardService;
 pub use hotkey::HotkeyService;
 pub use paste::PasteService;

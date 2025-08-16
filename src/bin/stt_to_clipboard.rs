@@ -554,7 +554,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let wall = st.elapsed();
                                 let audio_s = (seg_audio.len() as f64) / 16000.0_f64;
                                 let wall_s = wall.as_secs_f64();
-                                let rtf = if audio_s > 0.0 { wall_s / audio_s } else { 0.0 };
+                                let rtf = if wall_s > 0.0 { audio_s / wall_s } else { 0.0 };
                                 info!(
                                     target: "runner",
                                     "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m",
@@ -682,12 +682,17 @@ fn resample_linear(input: &[f32], from_sr: u32, to_sr: u32) -> Vec<f32> {
 
 fn init_logging() {
     use tracing_subscriber::fmt::time::UtcTime;
+    
+    // Allow environment variable to control log level, default to info
+    let log_level = std::env::var("CLIPSTTY_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+    let filter_directive = format!("stt_clippy={},runner={},stt={}", log_level, log_level, log_level);
+    
     let stdout_layer = tracing_subscriber::fmt::layer()
         .with_timer(UtcTime::rfc_3339())
         .with_target(true)
         .with_ansi(true);
     let _ = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new("stt_clippy=debug,runner=debug,stt=debug"))
+        .with(tracing_subscriber::EnvFilter::new(filter_directive))
         .with(stdout_layer)
         .try_init();
 }

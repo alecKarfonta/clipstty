@@ -73,6 +73,9 @@ pub enum AudioError {
 
     #[error("VAD initialization failed: {0}")]
     VADInit(String),
+
+    #[error("Audio playback failed: {0}")]
+    PlaybackError(String),
 }
 
 /// STT-related errors
