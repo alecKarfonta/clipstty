@@ -10,6 +10,10 @@ pub mod voice_commands;
 pub mod audio_archive;
 pub mod audio_storage;
 pub mod audio_menu;
+pub mod transcription_log;
+pub mod transcription_deduplication;
+pub mod transcription_search;
+pub mod transcription_analytics;
 
 pub use audio::AudioService;
 pub use clipboard::ClipboardService;
@@ -21,3 +25,7 @@ pub use voice_commands::{VoiceCommandEngine, VoiceCommand, CommandCategory, Comm
 pub use audio_archive::{AudioArchiveService, AudioError, RecordingSession};
 pub use audio_storage::FileAudioStorage;
 pub use audio_menu::AudioRecordingMenu;
+pub use transcription_log::{TranscriptionLogService, TranscriptEntry, TranscriptError};
+pub use transcription_deduplication::TranscriptDeduplicator;
+pub use transcription_search::TranscriptIndexer;
+pub use transcription_analytics::TranscriptAnalytics;
