@@ -12,6 +12,8 @@ pub mod voice_commands;
 pub mod audio_archive;
 pub mod audio_storage;
 pub mod audio_menu;
+pub mod audio_session_manager;
+pub mod session_transcript_tracker;
 pub mod transcription_log;
 pub mod transcription_deduplication;
 pub mod transcription_search;

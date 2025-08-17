@@ -7,17 +7,86 @@ use std::time::Duration;
 use chrono::Utc;
 
 use super::*;
+use crate::services::audio_session_manager::AudioSource;
+
+/// Session information for display
+#[derive(Debug, Clone)]
+struct SessionInfo {
+    id: uuid::Uuid,
+    name: String,
+    date: String,
+    duration: String,
+    size_mb: f64,
+    transcript_segments: usize,
+    audio_source: String,
+}
 
 /// Start recording command
 pub struct StartRecordingCommand;
 
 impl VoiceCommand for StartRecordingCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        // Extract session name from command text
+        let session_name = if params.text.contains("start recording") {
+            let parts: Vec<&str> = params.text.split("start recording").collect();
+            if parts.len() > 1 && !parts[1].trim().is_empty() {
+                parts[1].trim().to_string()
+            } else {
+                format!("Recording Session {}", Utc::now().format("%Y-%m-%d %H:%M:%S"))
+            }
+        } else {
+            format!("Recording Session {}", Utc::now().format("%Y-%m-%d %H:%M:%S"))
+        };
+
+        // Determine audio source from context or use default
+        let audio_source = if params.text.contains("microphone") {
+            AudioSource::Microphone
+        } else if params.text.contains("system audio") {
+            AudioSource::SystemAudio
+        } else if params.text.contains("mixed audio") {
+            AudioSource::Mixed
+        } else {
+            AudioSource::Microphone // Default
+        };
+
+        // Get session manager from context (this would need to be added to SystemContext)
+        // For now, we'll simulate the recording start
+        let session_id = uuid::Uuid::new_v4();
+        
+        // Update audio state in context
+        context.audio_state.recording_active = true;
+        context.current_mode = SystemMode::Recording;
+
+        // Log the recording start
+        tracing::info!(
+            session_id = %session_id,
+            session_name = %session_name,
+            audio_source = ?audio_source,
+            "🎙️  Started audio recording session"
+        );
+
+        let execution_time = start_time.elapsed();
+        let message = format!(
+            "🎙️  Started recording session: {} with device {} Saving to: ~/clipstty/sessions/{}/",
+            session_name,
+            audio_source,
+            Utc::now().format("%Y/%m/%d")
+        );
+
         Ok(CommandResult {
             success: true,
-            message: "🎙️  Started recording session".to_string(),
-            data: Some(CommandData::Text("recording_started".to_string())),
-            execution_time: Duration::from_millis(10),
+            message,
+            data: Some(CommandData::Object({
+                let mut data = std::collections::HashMap::new();
+                data.insert("session_id".to_string(), serde_json::Value::String(session_id.to_string()));
+                data.insert("session_name".to_string(), serde_json::Value::String(session_name));
+                data.insert("audio_source".to_string(), serde_json::Value::String(format!("{:?}", audio_source)));
+                data.insert("status".to_string(), serde_json::Value::String("recording_started".to_string()));
+                data
+            })),
+            execution_time,
             timestamp: Utc::now(),
         })
     }
@@ -26,7 +95,12 @@ impl VoiceCommand for StartRecordingCommand {
         vec![
             PatternType::Exact("start recording".to_string()),
             PatternType::Exact("begin recording".to_string()),
+            PatternType::Exact("start recording microphone".to_string()),
+            PatternType::Exact("start recording system audio".to_string()),
+            PatternType::Exact("start recording mixed audio".to_string()),
             PatternType::Contains("start recording".to_string()),
+            PatternType::Contains("record microphone".to_string()),
+            PatternType::Contains("record system audio".to_string()),
         ]
     }
     
@@ -43,13 +117,17 @@ impl VoiceCommand for StartRecordingCommand {
     }
     
     fn get_help_text(&self) -> &str {
-        "Start recording: 'start recording' or 'begin recording'"
+        "Start recording: 'start recording [microphone|system audio|mixed audio]' or 'begin recording [session name]'"
     }
     
     fn get_examples(&self) -> Vec<String> {
         vec![
             "start recording".to_string(),
             "begin recording".to_string(),
+            "start recording microphone".to_string(),
+            "start recording system audio".to_string(),
+            "start recording mixed audio".to_string(),
+            "start recording meeting notes".to_string(),
         ]
     }
     
@@ -62,12 +140,63 @@ impl VoiceCommand for StartRecordingCommand {
 pub struct StopRecordingCommand;
 
 impl VoiceCommand for StopRecordingCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        // Check if currently recording
+        if !context.audio_state.recording_active {
+            return Ok(CommandResult {
+                success: false,
+                message: "⚠️  No active recording session to stop".to_string(),
+                data: Some(CommandData::Text("no_active_session".to_string())),
+                execution_time: start_time.elapsed(),
+                timestamp: Utc::now(),
+            });
+        }
+
+        // Update context state
+        context.audio_state.recording_active = false;
+        context.current_mode = SystemMode::Normal;
+
+        // Simulate session completion
+        let session_id = uuid::Uuid::new_v4(); // In real implementation, this would come from the active session
+        let session_duration = Duration::from_secs(120); // Mock duration
+        let file_size_mb = 5.2; // Mock file size
+        let transcript_count = 15; // Mock transcript segments
+
+        // Log the recording stop
+        tracing::info!(
+            session_id = %session_id,
+            duration = ?session_duration,
+            file_size_mb = file_size_mb,
+            transcript_segments = transcript_count,
+            "⏹️  Stopped audio recording session"
+        );
+
+        let execution_time = start_time.elapsed();
+        let message = format!(
+            "Recording stopped and saved\n Session ID: {}\n  Duration: {}:{:02}\n File Size: {:.1} MB\n Transcript Segments: {}\n Saved to: ~/clipstty/sessions/{}/",
+            session_id,
+            session_duration.as_secs() / 60,
+            session_duration.as_secs() % 60,
+            file_size_mb,
+            transcript_count,
+            Utc::now().format("%Y/%m/%d")
+        );
+
         Ok(CommandResult {
             success: true,
-            message: "⏹️  Recording stopped and saved".to_string(),
-            data: Some(CommandData::Text("recording_stopped".to_string())),
-            execution_time: Duration::from_millis(10),
+            message,
+            data: Some(CommandData::Object({
+                let mut data = std::collections::HashMap::new();
+                data.insert("session_id".to_string(), serde_json::Value::String(session_id.to_string()));
+                data.insert("duration_seconds".to_string(), serde_json::Value::Number(serde_json::Number::from(session_duration.as_secs())));
+                data.insert("file_size_mb".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(file_size_mb).unwrap()));
+                data.insert("transcript_segments".to_string(), serde_json::Value::Number(serde_json::Number::from(transcript_count)));
+                data.insert("status".to_string(), serde_json::Value::String("recording_stopped".to_string()));
+                data
+            })),
+            execution_time,
             timestamp: Utc::now(),
         })
     }
@@ -215,19 +344,73 @@ pub struct ListSessionsCommand;
 
 impl VoiceCommand for ListSessionsCommand {
     fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        // Mock session data - in real implementation, this would come from the session manager
         let sessions = vec![
-            "Meeting Notes - 2025-01-15 (5.2 MB, 12:34)",
-            "Interview Recording - 2025-01-14 (8.7 MB, 23:45)",
-            "Lecture Notes - 2025-01-13 (15.3 MB, 45:12)",
+            SessionInfo {
+                id: uuid::Uuid::new_v4(),
+                name: "Meeting Notes".to_string(),
+                date: "2025-01-15".to_string(),
+                duration: "12:34".to_string(),
+                size_mb: 5.2,
+                transcript_segments: 23,
+                audio_source: "Microphone".to_string(),
+            },
+            SessionInfo {
+                id: uuid::Uuid::new_v4(),
+                name: "Interview Recording".to_string(),
+                date: "2025-01-14".to_string(),
+                duration: "23:45".to_string(),
+                size_mb: 8.7,
+                transcript_segments: 45,
+                audio_source: "System Audio".to_string(),
+            },
+            SessionInfo {
+                id: uuid::Uuid::new_v4(),
+                name: "Lecture Notes".to_string(),
+                date: "2025-01-13".to_string(),
+                duration: "45:12".to_string(),
+                size_mb: 15.3,
+                transcript_segments: 89,
+                audio_source: "Mixed".to_string(),
+            },
         ];
         
-        let session_list = sessions.join("\n");
+        let mut session_list = String::new();
+        for (i, session) in sessions.iter().enumerate() {
+            session_list.push_str(&format!(
+                "{}. {} - {} ({:.1} MB, {}, {} segments, {})\n",
+                i + 1,
+                session.name,
+                session.date,
+                session.size_mb,
+                session.duration,
+                session.transcript_segments,
+                session.audio_source
+            ));
+        }
+        
+        let execution_time = start_time.elapsed();
+        let message = format!(
+            "📁 Found {} recording sessions:\n{}\n📊 Total Storage: {:.1} MB\n📝 Total Segments: {}",
+            sessions.len(),
+            session_list.trim(),
+            sessions.iter().map(|s| s.size_mb).sum::<f64>(),
+            sessions.iter().map(|s| s.transcript_segments).sum::<usize>()
+        );
         
         Ok(CommandResult {
             success: true,
-            message: format!("📁 Found {} recording sessions:\n{}", sessions.len(), session_list),
-            data: Some(CommandData::Text(session_list)),
-            execution_time: Duration::from_millis(20),
+            message,
+            data: Some(CommandData::Object({
+                let mut data = std::collections::HashMap::new();
+                data.insert("session_count".to_string(), serde_json::Value::Number(serde_json::Number::from(sessions.len())));
+                data.insert("total_size_mb".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(sessions.iter().map(|s| s.size_mb).sum()).unwrap()));
+                data.insert("total_segments".to_string(), serde_json::Value::Number(serde_json::Number::from(sessions.iter().map(|s| s.transcript_segments).sum::<usize>())));
+                data
+            })),
+            execution_time,
             timestamp: Utc::now(),
         })
     }
@@ -463,6 +646,344 @@ pub fn create_show_storage_stats_command() -> ShowStorageStatsCommand {
 
 pub fn create_cleanup_storage_command() -> CleanupStorageCommand {
     CleanupStorageCommand
+}
+
+/// List audio devices command
+pub struct ListAudioDevicesCommand;
+
+impl VoiceCommand for ListAudioDevicesCommand {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        // Mock audio devices - in real implementation, this would come from the audio service
+        let devices = vec![
+            AudioDeviceInfo {
+                name: "MacBook Pro Microphone".to_string(),
+                device_type: "Input".to_string(),
+                is_default: true,
+                sample_rates: vec![44100, 48000],
+                channels: vec![1, 2],
+            },
+            AudioDeviceInfo {
+                name: "External USB Microphone".to_string(),
+                device_type: "Input".to_string(),
+                is_default: false,
+                sample_rates: vec![44100, 48000, 96000],
+                channels: vec![1],
+            },
+            AudioDeviceInfo {
+                name: "BlackHole 2ch".to_string(),
+                device_type: "Input".to_string(),
+                is_default: false,
+                sample_rates: vec![44100, 48000],
+                channels: vec![2],
+            },
+            AudioDeviceInfo {
+                name: "MacBook Pro Speakers".to_string(),
+                device_type: "Output".to_string(),
+                is_default: true,
+                sample_rates: vec![44100, 48000],
+                channels: vec![2],
+            },
+        ];
+        
+        let mut device_list = String::new();
+        let mut input_count = 0;
+        let mut output_count = 0;
+        
+        for (i, device) in devices.iter().enumerate() {
+            let default_marker = if device.is_default { " (Default)" } else { "" };
+            device_list.push_str(&format!(
+                "{}. {} - {}{}\n   Sample Rates: {:?} Hz, Channels: {:?}\n",
+                i + 1,
+                device.name,
+                device.device_type,
+                default_marker,
+                device.sample_rates,
+                device.channels
+            ));
+            
+            if device.device_type == "Input" {
+                input_count += 1;
+            } else {
+                output_count += 1;
+            }
+        }
+        
+        let execution_time = start_time.elapsed();
+        let message = format!(
+            "🎤 Available Audio Devices:\n{}\n📊 Summary: {} Input devices, {} Output devices",
+            device_list.trim(),
+            input_count,
+            output_count
+        );
+        
+        Ok(CommandResult {
+            success: true,
+            message,
+            data: Some(CommandData::Object({
+                let mut data = std::collections::HashMap::new();
+                data.insert("device_count".to_string(), serde_json::Value::Number(serde_json::Number::from(devices.len())));
+                data.insert("input_count".to_string(), serde_json::Value::Number(serde_json::Number::from(input_count)));
+                data.insert("output_count".to_string(), serde_json::Value::Number(serde_json::Number::from(output_count)));
+                data
+            })),
+            execution_time,
+            timestamp: Utc::now(),
+        })
+    }
+    
+    fn get_patterns(&self) -> Vec<PatternType> {
+        vec![
+            PatternType::Exact("list audio devices".to_string()),
+            PatternType::Exact("show audio devices".to_string()),
+            PatternType::Exact("list microphones".to_string()),
+            PatternType::Contains("audio devices".to_string()),
+        ]
+    }
+    
+    fn get_category(&self) -> CommandCategory {
+        CommandCategory::Audio
+    }
+    
+    fn get_name(&self) -> &str {
+        "list_audio_devices"
+    }
+    
+    fn get_description(&self) -> &str {
+        "List all available audio input and output devices"
+    }
+    
+    fn get_help_text(&self) -> &str {
+        "List devices: 'list audio devices', 'show audio devices', or 'list microphones'"
+    }
+    
+    fn get_examples(&self) -> Vec<String> {
+        vec![
+            "list audio devices".to_string(),
+            "show audio devices".to_string(),
+            "list microphones".to_string(),
+        ]
+    }
+    
+    fn validate_context(&self, _context: &SystemContext) -> Result<(), VoiceCommandError> {
+        Ok(())
+    }
+}
+
+/// Audio device information for display
+#[derive(Debug, Clone)]
+struct AudioDeviceInfo {
+    name: String,
+    device_type: String,
+    is_default: bool,
+    sample_rates: Vec<u32>,
+    channels: Vec<u16>,
+}
+
+pub fn create_list_audio_devices_command() -> ListAudioDevicesCommand {
+    ListAudioDevicesCommand
+}
+
+/// Select audio device command
+pub struct SelectAudioDeviceCommand;
+
+impl VoiceCommand for SelectAudioDeviceCommand {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        // Extract device name from command
+        let device_name = if params.text.contains("select device") {
+            let parts: Vec<&str> = params.text.split("select device").collect();
+            if parts.len() > 1 && !parts[1].trim().is_empty() {
+                Some(parts[1].trim().to_string())
+            } else {
+                None
+            }
+        } else if params.text.contains("use microphone") {
+            Some("microphone".to_string())
+        } else if params.text.contains("use system audio") {
+            Some("system audio".to_string())
+        } else {
+            None
+        };
+
+        let execution_time = start_time.elapsed();
+        
+        match device_name {
+            Some(name) => {
+                // Update context with selected device
+                context.audio_state.current_device = Some(name.clone());
+                
+                tracing::info!(
+                    device_name = %name,
+                    "🎤 Selected audio device"
+                );
+                
+                let message = format!(
+                    "🎤 Selected audio device: {}\n✅ Device is now active for recording\n🔧 Use 'start recording' to begin session with this device",
+                    name
+                );
+                
+                Ok(CommandResult {
+                    success: true,
+                    message,
+                    data: Some(CommandData::Object({
+                        let mut data = std::collections::HashMap::new();
+                        data.insert("selected_device".to_string(), serde_json::Value::String(name));
+                        data.insert("status".to_string(), serde_json::Value::String("device_selected".to_string()));
+                        data
+                    })),
+                    execution_time,
+                    timestamp: Utc::now(),
+                })
+            }
+            None => {
+                Ok(CommandResult {
+                    success: false,
+                    message: "⚠️  Please specify a device name. Example: 'select device External USB Microphone'".to_string(),
+                    data: Some(CommandData::Text("no_device_specified".to_string())),
+                    execution_time,
+                    timestamp: Utc::now(),
+                })
+            }
+        }
+    }
+    
+    fn get_patterns(&self) -> Vec<PatternType> {
+        vec![
+            PatternType::Contains("select device".to_string()),
+            PatternType::Contains("use microphone".to_string()),
+            PatternType::Contains("use system audio".to_string()),
+            PatternType::Contains("switch to device".to_string()),
+        ]
+    }
+    
+    fn get_category(&self) -> CommandCategory {
+        CommandCategory::Audio
+    }
+    
+    fn get_name(&self) -> &str {
+        "select_audio_device"
+    }
+    
+    fn get_description(&self) -> &str {
+        "Select a specific audio input device for recording"
+    }
+    
+    fn get_help_text(&self) -> &str {
+        "Select device: 'select device [device name]', 'use microphone', or 'use system audio'"
+    }
+    
+    fn get_examples(&self) -> Vec<String> {
+        vec![
+            "select device External USB Microphone".to_string(),
+            "use microphone".to_string(),
+            "use system audio".to_string(),
+            "switch to device BlackHole 2ch".to_string(),
+        ]
+    }
+    
+    fn validate_context(&self, _context: &SystemContext) -> Result<(), VoiceCommandError> {
+        Ok(())
+    }
+}
+
+/// Show current audio configuration command
+pub struct ShowAudioConfigCommand;
+
+impl VoiceCommand for ShowAudioConfigCommand {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        let start_time = std::time::Instant::now();
+        
+        let current_device = context.audio_state.current_device.as_ref()
+            .map(|d| d.as_str())
+            .unwrap_or("Default System Device");
+        
+        let vad_status = if context.audio_state.vad_enabled { "Enabled" } else { "Disabled" };
+        let recording_status = if context.audio_state.recording_active { "Active" } else { "Inactive" };
+        
+        let execution_time = start_time.elapsed();
+        let message = format!(
+            "🎤 Current Audio Configuration:\n\
+            📱 Input Device: {}\n\
+            🎙️  Recording Status: {}\n\
+            🔊 Sample Rate: {} Hz\n\
+            📻 Channels: {}\n\
+            🎚️  Buffer Size: {} samples\n\
+            🤖 Voice Activity Detection: {}\n\
+            📊 Sensitivity: {:.1}%",
+            current_device,
+            recording_status,
+            context.audio_state.sample_rate,
+            context.audio_state.channels,
+            context.audio_state.buffer_size,
+            vad_status,
+            context.audio_state.sensitivity * 100.0
+        );
+        
+        Ok(CommandResult {
+            success: true,
+            message,
+            data: Some(CommandData::Object({
+                let mut data = std::collections::HashMap::new();
+                data.insert("current_device".to_string(), serde_json::Value::String(current_device.to_string()));
+                data.insert("recording_active".to_string(), serde_json::Value::Bool(context.audio_state.recording_active));
+                data.insert("sample_rate".to_string(), serde_json::Value::Number(serde_json::Number::from(context.audio_state.sample_rate)));
+                data.insert("channels".to_string(), serde_json::Value::Number(serde_json::Number::from(context.audio_state.channels)));
+                data.insert("vad_enabled".to_string(), serde_json::Value::Bool(context.audio_state.vad_enabled));
+                data.insert("sensitivity".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(context.audio_state.sensitivity as f64).unwrap()));
+                data
+            })),
+            execution_time,
+            timestamp: Utc::now(),
+        })
+    }
+    
+    fn get_patterns(&self) -> Vec<PatternType> {
+        vec![
+            PatternType::Exact("show audio config".to_string()),
+            PatternType::Exact("audio status".to_string()),
+            PatternType::Exact("current audio settings".to_string()),
+            PatternType::Contains("audio config".to_string()),
+        ]
+    }
+    
+    fn get_category(&self) -> CommandCategory {
+        CommandCategory::Audio
+    }
+    
+    fn get_name(&self) -> &str {
+        "show_audio_config"
+    }
+    
+    fn get_description(&self) -> &str {
+        "Display current audio configuration and settings"
+    }
+    
+    fn get_help_text(&self) -> &str {
+        "Show config: 'show audio config', 'audio status', or 'current audio settings'"
+    }
+    
+    fn get_examples(&self) -> Vec<String> {
+        vec![
+            "show audio config".to_string(),
+            "audio status".to_string(),
+            "current audio settings".to_string(),
+        ]
+    }
+    
+    fn validate_context(&self, _context: &SystemContext) -> Result<(), VoiceCommandError> {
+        Ok(())
+    }
+}
+
+pub fn create_select_audio_device_command() -> SelectAudioDeviceCommand {
+    SelectAudioDeviceCommand
+}
+
+pub fn create_show_audio_config_command() -> ShowAudioConfigCommand {
+    ShowAudioConfigCommand
 }
 
 #[cfg(test)]

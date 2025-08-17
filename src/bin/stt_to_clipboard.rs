@@ -12,6 +12,38 @@ use stt_clippy::services::{
 };
 use tracing::{info, debug, error};
 use tracing_subscriber::prelude::*;
+use std::path::PathBuf;
+
+/// Get the data directory for clipstty, creating it if it doesn't exist
+fn get_data_directory() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let data_dir = if let Ok(custom_dir) = std::env::var("CLIPSTTY_DATA_DIR") {
+        // Handle ~ expansion manually
+        if custom_dir.starts_with("~/") {
+            let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+            PathBuf::from(home).join(&custom_dir[2..])
+        } else {
+            PathBuf::from(custom_dir)
+        }
+    } else {
+        let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+        PathBuf::from(home).join(".clipstty")
+    };
+    
+    // Create the directory if it doesn't exist
+    if !data_dir.exists() {
+        std::fs::create_dir_all(&data_dir)?;
+        info!("Created data directory: {}", data_dir.display());
+    }
+    
+    // Create sessions subdirectory
+    let sessions_dir = data_dir.join("sessions");
+    if !sessions_dir.exists() {
+        std::fs::create_dir_all(&sessions_dir)?;
+        info!("Created sessions directory: {}", sessions_dir.display());
+    }
+    
+    Ok(data_dir)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -272,6 +304,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut clipboard = ClipboardService::new()?;
     info!(target: "runner", "[stt_to_clipboard].main clipboard service initialized");
+    
+    // Initialize data directory
+    let data_dir = get_data_directory()?;
+    info!(target: "runner", "[stt_to_clipboard].main data directory: {}", data_dir.display());
     
     // Initialize comprehensive voice command engine
     let mut voice_command_engine = create_comprehensive_command_engine();
