@@ -22,6 +22,9 @@ pub struct STTResult {
     /// Confidence score (0.0 to 1.0)
     pub confidence: f32,
 
+    /// Average log probability of the transcription
+    pub log_probability: Option<f32>,
+
     /// Language detected (ISO 639-1 code)
     pub language: Option<String>,
 
@@ -513,6 +516,7 @@ impl STTResult {
         Self {
             text,
             confidence,
+            log_probability: None,
             language: None,
             timestamp: Utc::now(),
             processing_time_ms: 0,
@@ -530,6 +534,12 @@ impl STTResult {
     /// Set processing time
     pub fn with_processing_time(mut self, time_ms: u64) -> Self {
         self.processing_time_ms = time_ms;
+        self
+    }
+
+    /// Set log probability
+    pub fn with_log_probability(mut self, log_prob: f32) -> Self {
+        self.log_probability = Some(log_prob);
         self
     }
 

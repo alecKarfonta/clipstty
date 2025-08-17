@@ -122,6 +122,9 @@ impl STTBackend for LocalWhisperBackend {
             )))?;
 
         let mut text = String::new();
+        let mut total_log_prob = 0.0f32;
+        let mut total_tokens = 0i32;
+        
         for i in 0..num_segments {
             let seg = self.state
                 .full_get_segment_text(i)
@@ -130,15 +133,49 @@ impl STTBackend for LocalWhisperBackend {
                     i, e
                 )))?;
             text.push_str(&seg);
+            
+            // Calculate log probabilities for this segment
+            let num_tokens = self.state
+                .full_n_tokens(i)
+                .map_err(|e| crate::core::error::STTError::Processing(format!(
+                    "Failed to get token count for segment {}: {}",
+                    i, e
+                )))?;
+            
+            for j in 0..num_tokens {
+                if let Ok(token_prob) = self.state.full_get_token_prob(i, j) {
+                    // Convert probability to log probability
+                    if token_prob > 0.0 {
+                        total_log_prob += token_prob.ln();
+                        total_tokens += 1;
+                    }
+                }
+            }
         }
 
         let processing_ms = start_time.elapsed().as_millis() as u64;
         let audio_sec = (audio.len() as f64) / 16000.0_f64;
         let wall_sec = (processing_ms as f64) / 1000.0_f64;
         let rtf = if audio_sec > 0.0 { wall_sec / audio_sec } else { 0.0 };
-        debug!(target: "stt", "Transcription completed: {}ms (RTF: {:.2}x)", processing_ms, rtf);
+        
+        // Calculate average log probability
+        let avg_log_prob = if total_tokens > 0 {
+            Some(total_log_prob / total_tokens as f32)
+        } else {
+            None
+        };
+        
+        debug!(target: "stt", "Transcription completed: {}ms (RTF: {:.2}x), avg_log_prob: {:?}", 
+               processing_ms, rtf, avg_log_prob);
 
-        Ok(STTResult::new(text, 1.0, model.to_string(), "local".to_string()).with_processing_time(processing_ms))
+        let mut result = STTResult::new(text, 1.0, model.to_string(), "local".to_string())
+            .with_processing_time(processing_ms);
+        
+        if let Some(log_prob) = avg_log_prob {
+            result = result.with_log_probability(log_prob);
+        }
+        
+        Ok(result)
     }
 }
 

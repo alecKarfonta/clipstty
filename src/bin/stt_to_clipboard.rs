@@ -608,19 +608,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let st = Instant::now();
                         match stt.transcribe(&seg_audio) {
                             Ok(result) => {
-                                println!("Transcription: {}", result.text);
+                                // Display transcription with log probability
+                                if let Some(log_prob) = result.log_probability {
+                                    println!("Transcription: {} (log_prob: {:.3})", result.text, log_prob);
+                                } else {
+                                    println!("Transcription: {}", result.text);
+                                }
                                 let wall = st.elapsed();
                                 let audio_s = (seg_audio.len() as f64) / 16000.0_f64;
                                 let wall_s = wall.as_secs_f64();
                                 let rtf = if wall_s > 0.0 { audio_s / wall_s } else { 0.0 };
+                                let log_prob_str = result.log_probability
+                                    .map(|lp| format!(" \x1b[1mlog_prob=\x1b[34m{:.3}\x1b[0m", lp))
+                                    .unwrap_or_default();
                                 info!(
                                     target: "runner",
-                                    "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m",
+                                    "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m{}",
                                     result.text.len(),
                                     result.text,
                                     audio_s,
                                     wall_s,
-                                    rtf
+                                    rtf,
+                                    log_prob_str
                                 );
                                 // Command recognition: intercept voice commands using comprehensive engine
                                 match voice_command_engine.process_voice_input(&result.text, result.confidence).await {

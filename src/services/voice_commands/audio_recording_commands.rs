@@ -191,16 +191,12 @@ impl VoiceCommand for StartRecordingCommand {
 
         // Log the recording start
         tracing::info!(
-            session_id = %session_id,
-            session_name = %session_name,
-            audio_source = ?audio_source,
-            "🎙️  Started audio recording session"
+            "Started audio recording session"
         );
 
         let execution_time = start_time.elapsed();
         let message = format!(
-            "Started recording session: {}",
-            session_name
+            "Started recording"
         );
 
         Ok(CommandResult {
@@ -346,12 +342,7 @@ impl VoiceCommand for StopRecordingCommand {
         let file_size_mb = session_result.file_size as f64 / (1024.0 * 1024.0);
         
         let message = format!(
-            "⏹️  Recording stopped and saved\n Session: {}\n⏱  Duration: {}:{:02}\n File Size: {:.3} MB\n Transcript Segments: {}",
-            session_result.name,
-            session_result.duration.as_secs() / 60,
-            session_result.duration.as_secs() % 60,
-            file_size_mb,
-            session_result.transcript_segments.len(),
+            "Recording stopped and saved"
         );
 
         Ok(CommandResult {

@@ -303,11 +303,8 @@ impl AudioSessionManager {
         }
 
         info!(
-            session_id = %session_id,
             name = %name,
-            audio_source = ?audio_source,
-            session_dir = %session_dir.display(),
-            "🎙️  Started audio recording session"
+            "Started audio recording session"
         );
 
         Ok(session_id)

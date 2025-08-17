@@ -10,19 +10,16 @@ STT Clippy is a powerful desktop application that converts speech to text with a
 
 | Feature | Demo | Description |
 |---------|------|-------------|
-| **STT to Clipboard** | 🎥 *[Video Coming Soon]* | Basic speech-to-text with clipboard integration |
-| **Instant Output** | 🎥 *[Video Coming Soon]* | Real-time text output as you speak |
-| **Session Recording** | 🎥 *[Video Coming Soon]* | Advanced recording sessions with voice commands |
+| **STT to Clipboard** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=E2_cI0sbckY) | Basic speech-to-text with clipboard integration |
+| **Instant Output** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=1ZcDpYB4nhQ) | Real-time text output as you speak |
+| **Session Recording** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=M8skn5w5y7c) | Advanced recording sessions with voice commands |
 
 ## ✨ Key Features
 
-🎤 **Instant Speech-to-Text** - Press a hotkey, speak, and get text instantly  
-📋 **Smart Clipboard** - Auto-copy to clipboard or paste directly where you're typing  
-🎙️ **Voice Commands** - Control your system with 50+ voice commands  
-📊 **Session Recording** - Advanced recording sessions with analytics  
-🔒 **Privacy First** - Local processing by default, your voice stays on your device  
-⚡ **High Performance** - Optimized for speed and low resource usage  
-🖥️ **Cross-Platform** - Works on Linux, macOS, and Windows
+**Voice activcated detection** - Automatically transcribe as you speak with configuration throgh voice commands 
+**Different modes** - Auto-copy to clipboard or paste directly where you're typing as you speak  
+**Voice Commands** - Control the application and enable differnt modes through voice commands
+**Session Recording** - Record named sessions of audio from a microphone or your system audio. Exports full audio, slience removed audio and broken out segments of speech. 
 
 ## 🚀 Quick Start
 
@@ -259,6 +256,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Made with ❤️ by the STT Clippy Team**
+**Made with ❤️ by the STT Clippy Team (Me and Claude)**
 
 *Transform your voice into text, anywhere, anytime.*
