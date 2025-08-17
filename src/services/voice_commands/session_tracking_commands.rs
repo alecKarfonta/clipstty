@@ -16,7 +16,7 @@ use crate::services::session_transcript_tracker::{
 pub struct ShowSessionTranscriptCommand;
 
 impl VoiceCommand for ShowSessionTranscriptCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock transcript data - in real implementation, this would come from the tracker
@@ -95,7 +95,7 @@ impl VoiceCommand for ShowSessionTranscriptCommand {
 pub struct ShowSpeakerAnalysisCommand;
 
 impl VoiceCommand for ShowSpeakerAnalysisCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock speaker analysis data
@@ -206,7 +206,7 @@ impl VoiceCommand for ShowSpeakerAnalysisCommand {
 pub struct ShowSessionKeywordsCommand;
 
 impl VoiceCommand for ShowSessionKeywordsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock keyword analysis
@@ -294,7 +294,7 @@ impl VoiceCommand for ShowSessionKeywordsCommand {
 pub struct GenerateSessionSummaryCommand;
 
 impl VoiceCommand for GenerateSessionSummaryCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock session summary generation
@@ -382,7 +382,7 @@ impl VoiceCommand for GenerateSessionSummaryCommand {
 pub struct ExportSessionTranscriptCommand;
 
 impl VoiceCommand for ExportSessionTranscriptCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Extract format from command
@@ -522,7 +522,7 @@ mod tests {
             user_id: None,
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -543,7 +543,7 @@ mod tests {
             user_id: None,
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -564,7 +564,7 @@ mod tests {
             user_id: None,
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();

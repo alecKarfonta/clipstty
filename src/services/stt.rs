@@ -2,6 +2,7 @@
 
 use crate::{core::config::STTConfig, core::types::*, Result, SUPPORTED_STT_MODELS};
 use std::time::Instant;
+use std::fmt;
 use tracing::{info, warn, debug, error};
 
 #[cfg(feature = "local-stt")]
@@ -244,5 +245,16 @@ impl STTService {
         self.selected_model = cfg.model_size.clone();
         self.config = cfg;
         Ok(())
+    }
+}
+
+impl fmt::Debug for STTService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("STTService")
+            .field("config", &self.config)
+            .field("selected_model", &self.selected_model)
+            .field("backend", &self.backend)
+            .field("local_backend", &self.local_backend.as_ref().map(|_| "LocalWhisperBackend"))
+            .finish()
     }
 }

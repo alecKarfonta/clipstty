@@ -8,7 +8,8 @@ use stt_clippy::services::{
     clipboard::ClipboardService, 
     paste::PasteService, 
     stt::STTService,
-    voice_commands::comprehensive_registry::create_comprehensive_command_engine,
+    audio_session_manager::{AudioSessionManager, SessionConfig},
+    voice_commands::{comprehensive_registry::create_comprehensive_command_engine, ServiceContext},
 };
 use tracing::{info, debug, error};
 use tracing_subscriber::prelude::*;
@@ -255,13 +256,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "╰─────────────────────────────────────────────────────");
     println!();
 
+    // Initialize data directory first
+    let data_dir = get_data_directory()?;
+    info!(target: "runner", "[stt_to_clipboard].main data directory: {}", data_dir.display());
+
     // Capture audio continuously with simple segment window
     info!(target: "runner", "[stt_to_clipboard].main initializing audio service");
     let mut audio_service = AudioService::new()?;
     info!(target: "runner", "[stt_to_clipboard].main audio service initialized");
     
+    // Create AudioSessionManager for recording functionality
+    let audio_service_arc = Arc::new(Mutex::new(audio_service));
+    let session_config = SessionConfig::default();
+    let audio_session_manager = Arc::new(Mutex::new(
+        AudioSessionManager::new(
+            audio_service_arc.clone(),
+            data_dir.clone(),
+            session_config,
+        )?
+    ));
+    info!(target: "runner", "[stt_to_clipboard].main audio session manager initialized");
+    
     // Get and log available audio devices
-    if let Ok(devices) = audio_service.get_devices() {
+    if let Ok(devices) = audio_service_arc.lock().unwrap().get_devices() {
         info!(target: "runner", "[stt_to_clipboard].main available audio devices:");
         for device in devices {
             if device.device_type == stt_clippy::core::types::AudioDeviceType::Input {
@@ -276,7 +293,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let captured_ref = captured.clone();
     let sample_rate_holder: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
     let sr_ref = sample_rate_holder.clone();
-    audio_service.on_audio_frame(move |frame, _sr| {
+    audio_service_arc.lock().unwrap().on_audio_frame(move |frame, _sr| {
         if let Ok(mut buf) = captured_ref.lock() {
             buf.extend_from_slice(frame);
         }
@@ -285,7 +302,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    audio_service.start_capture()?;
+    audio_service_arc.lock().unwrap().start_capture()?;
     info!(target: "runner", "[stt_to_clipboard].main started audio capture");
 
     let mut stt = STTService::new()?;
@@ -305,13 +322,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut clipboard = ClipboardService::new()?;
     info!(target: "runner", "[stt_to_clipboard].main clipboard service initialized");
     
-    // Initialize data directory
-    let data_dir = get_data_directory()?;
-    info!(target: "runner", "[stt_to_clipboard].main data directory: {}", data_dir.display());
+
     
     // Initialize comprehensive voice command engine
     let mut voice_command_engine = create_comprehensive_command_engine();
-    info!(target: "runner", "[stt_to_clipboard].main voice command engine initialized with 87+ commands");
+    
+    // Create service context and connect AudioSessionManager
+    let service_context = ServiceContext {
+        audio_session_manager: Some(audio_session_manager.clone()),
+    };
+    voice_command_engine.set_service_context(service_context);
+    
+    info!(target: "runner", "[stt_to_clipboard].main voice command engine initialized with 87+ commands and connected to audio session manager");
     
     let mut instant_output: bool = false;
     let mut narration_enabled: bool = false; // not used for continuous injection in this runner

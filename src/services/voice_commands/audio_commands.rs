@@ -13,7 +13,7 @@ use super::*;
 pub struct SetSampleRateCommand;
 
 impl VoiceCommand for SetSampleRateCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"(?:sample rate|rate) (?:to )?(\d+)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(rate_str) = captures.get(1) {
@@ -79,7 +79,7 @@ impl VoiceCommand for SetSampleRateCommand {
 pub struct SwitchAudioDeviceCommand;
 
 impl VoiceCommand for SwitchAudioDeviceCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"(?:switch to|use) device (.+)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(device_name) = captures.get(1) {
@@ -137,7 +137,7 @@ impl VoiceCommand for SwitchAudioDeviceCommand {
 pub struct AdjustVolumeCommand;
 
 impl VoiceCommand for AdjustVolumeCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"(?:volume|gain) (?:to )?(\d+)(?:%|percent)?").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(volume_str) = captures.get(1) {
@@ -201,7 +201,7 @@ impl VoiceCommand for AdjustVolumeCommand {
 pub struct EnableNoiseReductionCommand;
 
 impl VoiceCommand for EnableNoiseReductionCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Noise reduction enabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -248,7 +248,7 @@ impl VoiceCommand for EnableNoiseReductionCommand {
 pub struct DisableNoiseReductionCommand;
 
 impl VoiceCommand for DisableNoiseReductionCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Noise reduction disabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -295,7 +295,7 @@ impl VoiceCommand for DisableNoiseReductionCommand {
 pub struct SetBufferSizeCommand;
 
 impl VoiceCommand for SetBufferSizeCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"buffer size (?:to )?(\d+)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(size_str) = captures.get(1) {
@@ -359,7 +359,7 @@ impl VoiceCommand for SetBufferSizeCommand {
 pub struct CalibrateMicrophoneCommand;
 
 impl VoiceCommand for CalibrateMicrophoneCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // This would trigger a microphone calibration process
         Ok(CommandResult::success("Microphone calibration started. Please speak normally for 10 seconds.".to_string())
             .with_execution_time(Duration::from_millis(100)))
@@ -407,7 +407,7 @@ impl VoiceCommand for CalibrateMicrophoneCommand {
 pub struct TestAudioInputCommand;
 
 impl VoiceCommand for TestAudioInputCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Audio input test started. Speak now to test your microphone.".to_string())
             .with_execution_time(Duration::from_millis(50)))
     }
@@ -451,7 +451,7 @@ impl VoiceCommand for TestAudioInputCommand {
 pub struct ShowAudioDevicesCommand;
 
 impl VoiceCommand for ShowAudioDevicesCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let devices_info = "Available Audio Devices:\n\
             • Built-in Microphone (default)\n\
             • USB Headset\n\
@@ -505,7 +505,7 @@ impl VoiceCommand for ShowAudioDevicesCommand {
 pub struct EnableAGCCommand;
 
 impl VoiceCommand for EnableAGCCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Automatic gain control enabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -556,7 +556,7 @@ impl VoiceCommand for EnableAGCCommand {
 pub struct DisableAGCCommand;
 
 impl VoiceCommand for DisableAGCCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Automatic gain control disabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -607,7 +607,7 @@ impl VoiceCommand for DisableAGCCommand {
 pub struct ShowAudioSettingsCommand;
 
 impl VoiceCommand for ShowAudioSettingsCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let settings = format!(
             "Audio Settings:\n\
             • Sample Rate: {}Hz\n\

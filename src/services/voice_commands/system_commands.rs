@@ -12,7 +12,7 @@ use super::*;
 pub struct RestartServiceCommand;
 
 impl VoiceCommand for RestartServiceCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("System service restarted successfully".to_string())
             .with_execution_time(Duration::from_millis(1000)))
     }
@@ -59,7 +59,7 @@ impl VoiceCommand for RestartServiceCommand {
 pub struct ReloadConfigCommand;
 
 impl VoiceCommand for ReloadConfigCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Configuration reloaded from disk".to_string())
             .with_execution_time(Duration::from_millis(200)))
     }
@@ -102,7 +102,7 @@ impl VoiceCommand for ReloadConfigCommand {
 pub struct ClearCacheCommand;
 
 impl VoiceCommand for ClearCacheCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("System cache cleared".to_string())
             .with_execution_time(Duration::from_millis(300)))
     }
@@ -145,7 +145,7 @@ impl VoiceCommand for ClearCacheCommand {
 pub struct BackupSettingsCommand;
 
 impl VoiceCommand for BackupSettingsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let backup_name = format!("settings_backup_{}", timestamp);
         
@@ -193,7 +193,7 @@ impl VoiceCommand for BackupSettingsCommand {
 pub struct ShowMetricsCommand;
 
 impl VoiceCommand for ShowMetricsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let metrics = "Performance Metrics:\n\
             • CPU Usage: 15.2%\n\
             • Memory Usage: 142.5 MB\n\
@@ -250,7 +250,7 @@ impl VoiceCommand for ShowMetricsCommand {
 pub struct ExportLogsCommand;
 
 impl VoiceCommand for ExportLogsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
         let log_file = format!("stt_clippy_logs_{}.txt", timestamp);
         
@@ -298,7 +298,7 @@ impl VoiceCommand for ExportLogsCommand {
 pub struct CheckUpdatesCommand;
 
 impl VoiceCommand for CheckUpdatesCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Checking for updates... Current version is up to date.".to_string())
             .with_execution_time(Duration::from_millis(2000)))
     }
@@ -341,7 +341,7 @@ impl VoiceCommand for CheckUpdatesCommand {
 pub struct ShowVersionCommand;
 
 impl VoiceCommand for ShowVersionCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let version_info = format!(
             "STT Clippy Version Information:\n\
             • Version: {}\n\
@@ -396,7 +396,7 @@ impl VoiceCommand for ShowVersionCommand {
 pub struct ExitApplicationCommand;
 
 impl VoiceCommand for ExitApplicationCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Shutting down STT Clippy... Goodbye!".to_string())
             .with_execution_time(Duration::from_millis(100)))
     }
@@ -446,7 +446,7 @@ impl VoiceCommand for ExitApplicationCommand {
 pub struct RunDiagnosticsCommand;
 
 impl VoiceCommand for RunDiagnosticsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let diagnostics = "Running system diagnostics...\n\
             ✓ Audio system: OK\n\
             ✓ STT service: OK\n\
@@ -503,7 +503,7 @@ impl VoiceCommand for RunDiagnosticsCommand {
 pub struct SetLogLevelCommand;
 
 impl VoiceCommand for SetLogLevelCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"log level (?:to )?(debug|info|warn|error)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(level_str) = captures.get(1) {
@@ -558,7 +558,7 @@ impl VoiceCommand for SetLogLevelCommand {
 pub struct ResetDefaultsCommand;
 
 impl VoiceCommand for ResetDefaultsCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Reset context to defaults
         context.audio_state = AudioState::default();
         context.stt_state = STTState::default();

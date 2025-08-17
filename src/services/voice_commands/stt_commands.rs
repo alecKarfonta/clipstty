@@ -13,7 +13,7 @@ use super::*;
 pub struct SwitchModelCommand;
 
 impl VoiceCommand for SwitchModelCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"(?:switch to|use|load) (?:model )?(\w+)(?: model)?").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(model_str) = captures.get(1) {
@@ -79,7 +79,7 @@ impl VoiceCommand for SwitchModelCommand {
 pub struct SetLanguageCommand;
 
 impl VoiceCommand for SetLanguageCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"(?:language|lang) (?:to )?([a-z]{2}|english|spanish|french|german|auto)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(lang_str) = captures.get(1) {
@@ -155,7 +155,7 @@ impl VoiceCommand for SetLanguageCommand {
 pub struct EnablePunctuationCommand;
 
 impl VoiceCommand for EnablePunctuationCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Automatic punctuation enabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -202,7 +202,7 @@ impl VoiceCommand for EnablePunctuationCommand {
 pub struct DisablePunctuationCommand;
 
 impl VoiceCommand for DisablePunctuationCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Automatic punctuation disabled".to_string())
             .with_execution_time(Duration::from_millis(20)))
     }
@@ -249,7 +249,7 @@ impl VoiceCommand for DisablePunctuationCommand {
 pub struct SetConfidenceThresholdCommand;
 
 impl VoiceCommand for SetConfidenceThresholdCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let regex = Regex::new(r"confidence (?:threshold )?(?:to )?([0-9]*\.?[0-9]+)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
             if let Some(threshold_str) = captures.get(1) {
@@ -312,7 +312,7 @@ impl VoiceCommand for SetConfidenceThresholdCommand {
 pub struct ToggleStreamingCommand;
 
 impl VoiceCommand for ToggleStreamingCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // This would toggle between streaming and batch processing
         Ok(CommandResult::success("Streaming mode toggled".to_string())
             .with_execution_time(Duration::from_millis(30)))
@@ -359,7 +359,7 @@ impl VoiceCommand for ToggleStreamingCommand {
 pub struct EnableInstantOutputCommand;
 
 impl VoiceCommand for EnableInstantOutputCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.stt_state.instant_output = true;
         Ok(CommandResult::success("Instant output enabled - text will be pasted directly".to_string())
             .with_execution_time(Duration::from_millis(20)))
@@ -407,7 +407,7 @@ impl VoiceCommand for EnableInstantOutputCommand {
 pub struct DisableInstantOutputCommand;
 
 impl VoiceCommand for DisableInstantOutputCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.stt_state.instant_output = false;
         Ok(CommandResult::success("Instant output disabled - text will be saved to clipboard".to_string())
             .with_execution_time(Duration::from_millis(20)))
@@ -455,7 +455,7 @@ impl VoiceCommand for DisableInstantOutputCommand {
 pub struct AdjustProcessingSpeedCommand;
 
 impl VoiceCommand for AdjustProcessingSpeedCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         if params.text.contains("faster") || params.text.contains("speed up") {
             Ok(CommandResult::success("STT processing speed increased".to_string())
                 .with_execution_time(Duration::from_millis(30)))
@@ -511,7 +511,7 @@ impl VoiceCommand for AdjustProcessingSpeedCommand {
 pub struct ShowSTTSettingsCommand;
 
 impl VoiceCommand for ShowSTTSettingsCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let settings = format!(
             "STT Settings:\n\
             • Current Model: {}\n\
@@ -571,7 +571,7 @@ impl VoiceCommand for ShowSTTSettingsCommand {
 pub struct RestartSTTServiceCommand;
 
 impl VoiceCommand for RestartSTTServiceCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("STT service restarted".to_string())
             .with_execution_time(Duration::from_millis(500)))
     }

@@ -17,6 +17,7 @@ pub enum VADMode {
 }
 
 /// VAD service scaffold
+#[derive(Debug)]
 pub struct VADService {
     sensitivity: f32,
     timeout_ms: u64,

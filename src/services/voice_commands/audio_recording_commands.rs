@@ -4,6 +4,8 @@
 //! session management, playback, and storage operations.
 
 use std::time::Duration;
+use std::path::PathBuf;
+use std::fs;
 use chrono::Utc;
 
 use super::*;
@@ -21,12 +23,104 @@ struct SessionInfo {
     audio_source: String,
 }
 
+/// Get the data directory for clipstty
+fn get_data_directory() -> PathBuf {
+    if let Ok(custom_dir) = std::env::var("CLIPSTTY_DATA_DIR") {
+        // Handle ~ expansion manually
+        if custom_dir.starts_with("~/") {
+            if let Ok(home) = std::env::var("HOME") {
+                PathBuf::from(home).join(&custom_dir[2..])
+            } else {
+                PathBuf::from(custom_dir)
+            }
+        } else {
+            PathBuf::from(custom_dir)
+        }
+    } else {
+        if let Ok(home) = std::env::var("HOME") {
+            PathBuf::from(home).join(".clipstty")
+        } else {
+            PathBuf::from(".clipstty")
+        }
+    }
+}
+
+/// Create a recording session file
+fn create_session_file(session_id: &uuid::Uuid, session_name: &str, audio_source: &AudioSource) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let data_dir = get_data_directory();
+    let sessions_dir = data_dir.join("sessions");
+    let date_dir = sessions_dir.join(Utc::now().format("%Y/%m/%d").to_string());
+    
+    // Create directory structure
+    fs::create_dir_all(&date_dir)?;
+    
+    // Sanitize session name for filename
+    let sanitized_name = session_name.chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect::<String>()
+        .chars()
+        .take(50)
+        .collect::<String>();
+    
+    let filename = format!("{}_{}.wav", sanitized_name, session_id);
+    let file_path = date_dir.join(filename);
+    
+    // Create a placeholder WAV file (44-byte WAV header for empty file)
+    let wav_header = create_empty_wav_header();
+    fs::write(&file_path, wav_header)?;
+    
+    // Create metadata file
+    let metadata = serde_json::json!({
+        "session_id": session_id.to_string(),
+        "session_name": session_name,
+        "audio_source": format!("{}", audio_source),
+        "start_time": Utc::now().to_rfc3339(),
+        "status": "recording",
+        "file_path": file_path.to_string_lossy()
+    });
+    
+    let metadata_path = file_path.with_extension("json");
+    fs::write(metadata_path, serde_json::to_string_pretty(&metadata)?)?;
+    
+    Ok(file_path)
+}
+
+/// Create an empty WAV file header
+fn create_empty_wav_header() -> Vec<u8> {
+    // Basic WAV header for 16-bit, 44.1kHz, mono
+    vec![
+        // RIFF header
+        0x52, 0x49, 0x46, 0x46, // "RIFF"
+        0x24, 0x00, 0x00, 0x00, // File size - 8 (36 bytes)
+        0x57, 0x41, 0x56, 0x45, // "WAVE"
+        
+        // fmt chunk
+        0x66, 0x6D, 0x74, 0x20, // "fmt "
+        0x10, 0x00, 0x00, 0x00, // Chunk size (16)
+        0x01, 0x00,             // Audio format (PCM)
+        0x01, 0x00,             // Number of channels (1)
+        0x44, 0xAC, 0x00, 0x00, // Sample rate (44100)
+        0x88, 0x58, 0x01, 0x00, // Byte rate
+        0x88, 0x58, 0x01, 0x00, // Block align
+        0x10, 0x00,             // Bits per sample (16)
+        
+        // data chunk
+        0x64, 0x61, 0x74, 0x61, // "data"
+        0x00, 0x00, 0x00, 0x00, // Data size (0 for empty file)
+    ]
+}
+
 /// Start recording command
 pub struct StartRecordingCommand;
 
 impl VoiceCommand for StartRecordingCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
+        
+        // Check if we have access to the audio session manager
+        let audio_session_manager = services
+            .and_then(|s| s.audio_session_manager.as_ref())
+            .ok_or_else(|| VoiceCommandError::ServiceUnavailable("AudioSessionManager not available".to_string()))?;
         
         // Extract session name from command text
         let session_name = if params.text.contains("start recording") {
@@ -51,13 +145,49 @@ impl VoiceCommand for StartRecordingCommand {
             AudioSource::Microphone // Default
         };
 
-        // Get session manager from context (this would need to be added to SystemContext)
-        // For now, we'll simulate the recording start
-        let session_id = uuid::Uuid::new_v4();
-        
-        // Update audio state in context
-        context.audio_state.recording_active = true;
-        context.current_mode = SystemMode::Recording;
+        // Use the real AudioSessionManager to start recording
+        let session_id = match audio_session_manager.lock() {
+            Ok(mut manager) => {
+                match manager.start_recording_session(
+                    session_name.clone(),
+                    None, // description
+                    Some(audio_source.clone()),
+                    Vec::new(), // tags
+                ) {
+                    Ok(id) => {
+                        // Update context state
+                        context.audio_state.recording_active = true;
+                        context.current_mode = SystemMode::Recording;
+                        
+                        // Store session info in context for later use
+                        context.session_data.insert("active_recording_session_id".to_string(), 
+                            serde_json::Value::String(id.to_string()));
+                        context.session_data.insert("active_recording_name".to_string(), 
+                            serde_json::Value::String(session_name.clone()));
+                        
+                        id
+                    }
+                    Err(e) => {
+                        return Ok(CommandResult {
+                            success: false,
+                            message: format!("❌ Failed to start recording session: {}", e),
+                            data: Some(CommandData::Text("session_start_failed".to_string())),
+                            execution_time: start_time.elapsed(),
+                            timestamp: Utc::now(),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                return Ok(CommandResult {
+                    success: false,
+                    message: format!("❌ Failed to access audio session manager: {}", e),
+                    data: Some(CommandData::Text("service_lock_failed".to_string())),
+                    execution_time: start_time.elapsed(),
+                    timestamp: Utc::now(),
+                });
+            }
+        };
 
         // Log the recording start
         tracing::info!(
@@ -69,10 +199,8 @@ impl VoiceCommand for StartRecordingCommand {
 
         let execution_time = start_time.elapsed();
         let message = format!(
-            "🎙️  Started recording session: {} with device {} Saving to: ~/clipstty/sessions/{}/",
-            session_name,
-            audio_source,
-            Utc::now().format("%Y/%m/%d")
+            "Started recording session: {}",
+            session_name
         );
 
         Ok(CommandResult {
@@ -140,8 +268,13 @@ impl VoiceCommand for StartRecordingCommand {
 pub struct StopRecordingCommand;
 
 impl VoiceCommand for StopRecordingCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
+        
+        // Check if we have access to the audio session manager
+        let audio_session_manager = services
+            .and_then(|s| s.audio_session_manager.as_ref())
+            .ok_or_else(|| VoiceCommandError::ServiceUnavailable("AudioSessionManager not available".to_string()))?;
         
         // Check if currently recording
         if !context.audio_state.recording_active {
@@ -154,34 +287,71 @@ impl VoiceCommand for StopRecordingCommand {
             });
         }
 
-        // Update context state
-        context.audio_state.recording_active = false;
-        context.current_mode = SystemMode::Normal;
-
-        // Simulate session completion
-        let session_id = uuid::Uuid::new_v4(); // In real implementation, this would come from the active session
-        let session_duration = Duration::from_secs(120); // Mock duration
-        let file_size_mb = 5.2; // Mock file size
-        let transcript_count = 15; // Mock transcript segments
+        // Use the real AudioSessionManager to stop recording
+        let session_result = match audio_session_manager.lock() {
+            Ok(mut manager) => {
+                match manager.stop_recording_session() {
+                    Ok(Some(session)) => {
+                        // Update context state
+                        context.audio_state.recording_active = false;
+                        context.current_mode = SystemMode::Normal;
+                        
+                        // Clear session data from context
+                        context.session_data.remove("active_recording_session_id");
+                        context.session_data.remove("active_recording_name");
+                        
+                        session
+                    }
+                    Ok(None) => {
+                        return Ok(CommandResult {
+                            success: false,
+                            message: "⚠️  No active recording session found".to_string(),
+                            data: Some(CommandData::Text("no_session_found".to_string())),
+                            execution_time: start_time.elapsed(),
+                            timestamp: Utc::now(),
+                        });
+                    }
+                    Err(e) => {
+                        return Ok(CommandResult {
+                            success: false,
+                            message: format!("❌ Failed to stop recording session: {}", e),
+                            data: Some(CommandData::Text("session_stop_failed".to_string())),
+                            execution_time: start_time.elapsed(),
+                            timestamp: Utc::now(),
+                        });
+                    }
+                }
+            }
+            Err(e) => {
+                return Ok(CommandResult {
+                    success: false,
+                    message: format!("❌ Failed to access audio session manager: {}", e),
+                    data: Some(CommandData::Text("service_lock_failed".to_string())),
+                    execution_time: start_time.elapsed(),
+                    timestamp: Utc::now(),
+                });
+            }
+        };
 
         // Log the recording stop
         tracing::info!(
-            session_id = %session_id,
-            duration = ?session_duration,
-            file_size_mb = file_size_mb,
-            transcript_segments = transcript_count,
+            session_id = %session_result.id,
+            duration = ?session_result.duration,
+            file_size = session_result.file_size,
+            transcript_segments = session_result.transcript_segments.len(),
             "⏹️  Stopped audio recording session"
         );
 
         let execution_time = start_time.elapsed();
+        let file_size_mb = session_result.file_size as f64 / (1024.0 * 1024.0);
+        
         let message = format!(
-            "Recording stopped and saved\n Session ID: {}\n  Duration: {}:{:02}\n File Size: {:.1} MB\n Transcript Segments: {}\n Saved to: ~/clipstty/sessions/{}/",
-            session_id,
-            session_duration.as_secs() / 60,
-            session_duration.as_secs() % 60,
+            "⏹️  Recording stopped and saved\n Session: {}\n⏱  Duration: {}:{:02}\n File Size: {:.3} MB\n Transcript Segments: {}",
+            session_result.name,
+            session_result.duration.as_secs() / 60,
+            session_result.duration.as_secs() % 60,
             file_size_mb,
-            transcript_count,
-            Utc::now().format("%Y/%m/%d")
+            session_result.transcript_segments.len(),
         );
 
         Ok(CommandResult {
@@ -189,10 +359,12 @@ impl VoiceCommand for StopRecordingCommand {
             message,
             data: Some(CommandData::Object({
                 let mut data = std::collections::HashMap::new();
-                data.insert("session_id".to_string(), serde_json::Value::String(session_id.to_string()));
-                data.insert("duration_seconds".to_string(), serde_json::Value::Number(serde_json::Number::from(session_duration.as_secs())));
+                data.insert("session_id".to_string(), serde_json::Value::String(session_result.id.to_string()));
+                data.insert("session_name".to_string(), serde_json::Value::String(session_result.name));
+                data.insert("duration_seconds".to_string(), serde_json::Value::Number(serde_json::Number::from(session_result.duration.as_secs())));
                 data.insert("file_size_mb".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(file_size_mb).unwrap()));
-                data.insert("transcript_segments".to_string(), serde_json::Value::Number(serde_json::Number::from(transcript_count)));
+                data.insert("transcript_segments".to_string(), serde_json::Value::Number(serde_json::Number::from(session_result.transcript_segments.len())));
+                data.insert("file_path".to_string(), serde_json::Value::String(session_result.file_path.to_string_lossy().to_string()));
                 data.insert("status".to_string(), serde_json::Value::String("recording_stopped".to_string()));
                 data
             })),
@@ -241,7 +413,7 @@ impl VoiceCommand for StopRecordingCommand {
 pub struct PauseRecordingCommand;
 
 impl VoiceCommand for PauseRecordingCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "⏸️  Recording paused".to_string(),
@@ -291,7 +463,7 @@ impl VoiceCommand for PauseRecordingCommand {
 pub struct ResumeRecordingCommand;
 
 impl VoiceCommand for ResumeRecordingCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "▶️  Recording resumed".to_string(),
@@ -343,7 +515,7 @@ impl VoiceCommand for ResumeRecordingCommand {
 pub struct ListSessionsCommand;
 
 impl VoiceCommand for ListSessionsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock session data - in real implementation, this would come from the session manager
@@ -457,7 +629,7 @@ impl VoiceCommand for ListSessionsCommand {
 pub struct CompressFilesCommand;
 
 impl VoiceCommand for CompressFilesCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "🗜️  Compressing audio files... Saved 45% storage space (3.2 GB → 1.8 GB)".to_string(),
@@ -507,7 +679,7 @@ impl VoiceCommand for CompressFilesCommand {
 pub struct ShowStorageStatsCommand;
 
 impl VoiceCommand for ShowStorageStatsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let stats = "📊 Storage Statistics:\n\
                     Total Sessions: 24\n\
                     Total Size: 8.7 GB\n\
@@ -567,7 +739,7 @@ impl VoiceCommand for ShowStorageStatsCommand {
 pub struct CleanupStorageCommand;
 
 impl VoiceCommand for CleanupStorageCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "🧹 Storage cleanup complete. Removed 8 old files, freed 2.1 GB".to_string(),
@@ -652,7 +824,7 @@ pub fn create_cleanup_storage_command() -> CleanupStorageCommand {
 pub struct ListAudioDevicesCommand;
 
 impl VoiceCommand for ListAudioDevicesCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Mock audio devices - in real implementation, this would come from the audio service
@@ -789,7 +961,7 @@ pub fn create_list_audio_devices_command() -> ListAudioDevicesCommand {
 pub struct SelectAudioDeviceCommand;
 
 impl VoiceCommand for SelectAudioDeviceCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         // Extract device name from command
@@ -893,7 +1065,7 @@ impl VoiceCommand for SelectAudioDeviceCommand {
 pub struct ShowAudioConfigCommand;
 
 impl VoiceCommand for ShowAudioConfigCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let start_time = std::time::Instant::now();
         
         let current_device = context.audio_state.current_device.as_ref()
@@ -1001,7 +1173,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -1020,7 +1192,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -1039,7 +1211,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();

@@ -12,7 +12,7 @@ use super::*;
 pub struct SearchTranscriptsCommand;
 
 impl VoiceCommand for SearchTranscriptsCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract search query from params (simplified)
         let query = if params.text.starts_with("search transcripts") {
             params.text.strip_prefix("search transcripts").unwrap_or("").trim()
@@ -87,7 +87,7 @@ impl VoiceCommand for SearchTranscriptsCommand {
 pub struct ShowRecentTranscriptsCommand;
 
 impl VoiceCommand for ShowRecentTranscriptsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let recent_transcripts = vec![
             "📝 Recent Transcriptions:",
             "• Meeting Notes - 2025-01-16 14:30 (127 words, 95% confidence)",
@@ -148,7 +148,7 @@ impl VoiceCommand for ShowRecentTranscriptsCommand {
 pub struct ExportTranscriptsCommand;
 
 impl VoiceCommand for ExportTranscriptsCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract date range or criteria from params (simplified)
         let criteria = if params.text.contains("today") {
             "today's transcripts"
@@ -212,7 +212,7 @@ impl VoiceCommand for ExportTranscriptsCommand {
 pub struct DeleteDuplicateTranscriptsCommand;
 
 impl VoiceCommand for DeleteDuplicateTranscriptsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "🗑️  Deleted 7 duplicate transcripts, freed 2.3 MB storage space".to_string(),
@@ -262,7 +262,7 @@ impl VoiceCommand for DeleteDuplicateTranscriptsCommand {
 pub struct ShowTranscriptionStatisticsCommand;
 
 impl VoiceCommand for ShowTranscriptionStatisticsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let stats = "📊 Transcription Statistics:\n\
                     Total Transcripts: 1,247\n\
                     Total Words: 89,432\n\
@@ -322,7 +322,7 @@ impl VoiceCommand for ShowTranscriptionStatisticsCommand {
 pub struct CreateTranscriptBackupCommand;
 
 impl VoiceCommand for CreateTranscriptBackupCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let backup_filename = format!("transcript_backup_{}.json", Utc::now().format("%Y%m%d_%H%M%S"));
         
         Ok(CommandResult {
@@ -374,7 +374,7 @@ impl VoiceCommand for CreateTranscriptBackupCommand {
 pub struct TagTranscriptCommand;
 
 impl VoiceCommand for TagTranscriptCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract tag from command (simplified parsing)
         let tag = if params.text.contains("as") {
             params.text.split("as").last().unwrap_or("general").trim()
@@ -432,7 +432,7 @@ impl VoiceCommand for TagTranscriptCommand {
 pub struct FindTranscriptsContainingCommand;
 
 impl VoiceCommand for FindTranscriptsContainingCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract phrase from command (simplified parsing)
         let phrase = if params.text.contains("containing") {
             params.text.split("containing").last().unwrap_or("").trim()
@@ -504,7 +504,7 @@ impl VoiceCommand for FindTranscriptsContainingCommand {
 pub struct ShowAccuracyTrendsCommand;
 
 impl VoiceCommand for ShowAccuracyTrendsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let trends = "📈 Transcription Accuracy Trends:\n\
                      This Week: 91.3% (↗️ +2.1%)\n\
                      Last Week: 89.2%\n\
@@ -571,7 +571,7 @@ impl VoiceCommand for ShowAccuracyTrendsCommand {
 pub struct MergeSimilarTranscriptsCommand;
 
 impl VoiceCommand for MergeSimilarTranscriptsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult {
             success: true,
             message: "🔗 Merged 12 similar transcripts into 4 consolidated entries, saved 8.3 MB".to_string(),
@@ -621,7 +621,7 @@ impl VoiceCommand for MergeSimilarTranscriptsCommand {
 pub struct ShowWordFrequencyCommand;
 
 impl VoiceCommand for ShowWordFrequencyCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let analysis = "📊 Word Frequency Analysis:\n\
                        \n\
                        🔝 Top 10 Words:\n\
@@ -696,7 +696,7 @@ impl VoiceCommand for ShowWordFrequencyCommand {
 pub struct ExportTranscriptAsTextCommand;
 
 impl VoiceCommand for ExportTranscriptAsTextCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract filename or use default
         let filename = if params.text.contains("as") {
             let parts: Vec<&str> = params.text.split("as").collect();
@@ -824,7 +824,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -843,7 +843,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -862,7 +862,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();
@@ -881,7 +881,7 @@ mod tests {
             timestamp: Utc::now(),
         };
         
-        let result = command.execute(params, &mut context);
+        let result = command.execute(params, &mut context, None);
         assert!(result.is_ok());
         
         let cmd_result = result.unwrap();

@@ -123,7 +123,7 @@ fn register_specialized_commands(engine: &mut VoiceCommandEngine) -> Result<(), 
 pub struct NavigateToSettingsCommand;
 
 impl VoiceCommand for NavigateToSettingsCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.current_mode = SystemMode::Configuration;
         Ok(CommandResult::success("Navigated to settings".to_string())
             .with_execution_time(Duration::from_millis(100)))
@@ -148,7 +148,7 @@ impl VoiceCommand for NavigateToSettingsCommand {
 pub struct NavigateToHistoryCommand;
 
 impl VoiceCommand for NavigateToHistoryCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Opened command history".to_string())
             .with_execution_time(Duration::from_millis(100)))
     }
@@ -172,7 +172,7 @@ impl VoiceCommand for NavigateToHistoryCommand {
 pub struct NavigateToLogsCommand;
 
 impl VoiceCommand for NavigateToLogsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Opened system logs".to_string())
             .with_execution_time(Duration::from_millis(100)))
     }
@@ -198,7 +198,7 @@ impl VoiceCommand for NavigateToLogsCommand {
 pub struct OpenLogFileCommand;
 
 impl VoiceCommand for OpenLogFileCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Log file opened in default editor".to_string())
             .with_execution_time(Duration::from_millis(200)))
     }
@@ -221,7 +221,7 @@ impl VoiceCommand for OpenLogFileCommand {
 pub struct OpenConfigFileCommand;
 
 impl VoiceCommand for OpenConfigFileCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Configuration file opened in default editor".to_string())
             .with_execution_time(Duration::from_millis(200)))
     }
@@ -244,7 +244,7 @@ impl VoiceCommand for OpenConfigFileCommand {
 pub struct OpenDataDirectoryCommand;
 
 impl VoiceCommand for OpenDataDirectoryCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Data directory opened in file manager".to_string())
             .with_execution_time(Duration::from_millis(300)))
     }
@@ -269,7 +269,7 @@ impl VoiceCommand for OpenDataDirectoryCommand {
 pub struct ShowCommandListCommand;
 
 impl VoiceCommand for ShowCommandListCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let command_list = "Available Command Categories:\n\
             • Audio Commands (12): VAD, sensitivity, devices, etc.\n\
             • STT Commands (11): models, language, output, etc.\n\
@@ -302,7 +302,7 @@ impl VoiceCommand for ShowCommandListCommand {
 pub struct SearchCommandsCommand;
 
 impl VoiceCommand for SearchCommandsCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let search_term = params.text.replace("search commands for ", "")
             .replace("search for ", "")
             .replace("find commands for ", "");
@@ -334,7 +334,7 @@ impl VoiceCommand for SearchCommandsCommand {
 pub struct ExplainCommandCommand;
 
 impl VoiceCommand for ExplainCommandCommand {
-    fn execute(&self, params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, _context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let command_name = params.text.replace("explain command ", "")
             .replace("explain ", "")
             .replace("what does ", "")
@@ -366,7 +366,7 @@ impl VoiceCommand for ExplainCommandCommand {
 pub struct ShowShortcutsCommand;
 
 impl VoiceCommand for ShowShortcutsCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let shortcuts = "Voice Command Shortcuts:\n\
             • 'vad on/off' → enable/disable VAD\n\
             • 'sens up/down' → adjust sensitivity\n\
@@ -401,7 +401,7 @@ impl VoiceCommand for ShowShortcutsCommand {
 pub struct ShowUptimeCommand;
 
 impl VoiceCommand for ShowUptimeCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let uptime = "System Uptime: 2 hours, 34 minutes, 18 seconds\n\
             Started: 2024-01-15 14:25:42 UTC\n\
             Total Commands: 127\n\
@@ -429,7 +429,7 @@ impl VoiceCommand for ShowUptimeCommand {
 pub struct ShowMemoryUsageCommand;
 
 impl VoiceCommand for ShowMemoryUsageCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let memory_info = "Memory Usage:\n\
             • Total Allocated: 142.5 MB\n\
             • Audio Buffers: 12.3 MB\n\
@@ -460,7 +460,7 @@ impl VoiceCommand for ShowMemoryUsageCommand {
 pub struct ToggleDebugModeCommand;
 
 impl VoiceCommand for ToggleDebugModeCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Debug mode toggled".to_string())
             .with_execution_time(Duration::from_millis(50)))
     }
@@ -484,7 +484,7 @@ impl VoiceCommand for ToggleDebugModeCommand {
 pub struct BenchmarkSystemCommand;
 
 impl VoiceCommand for BenchmarkSystemCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let benchmark = "Running system benchmark...\n\
             Audio Processing: 156.2 ops/sec\n\
             STT Inference: 2.3x real-time\n\
@@ -517,7 +517,7 @@ impl VoiceCommand for BenchmarkSystemCommand {
 pub struct QuickTestCommand;
 
 impl VoiceCommand for QuickTestCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Quick test completed - all systems operational".to_string())
             .with_execution_time(Duration::from_millis(1000)))
     }
@@ -540,7 +540,7 @@ impl VoiceCommand for QuickTestCommand {
 pub struct QuickSaveCommand;
 
 impl VoiceCommand for QuickSaveCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         Ok(CommandResult::success("Current state saved".to_string())
             .with_execution_time(Duration::from_millis(200)))
     }
@@ -563,7 +563,7 @@ impl VoiceCommand for QuickSaveCommand {
 pub struct QuickResetCommand;
 
 impl VoiceCommand for QuickResetCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&super::ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Reset only audio and STT states, not entire system
         context.audio_state.sensitivity = 0.5;
         context.audio_state.vad_enabled = true;

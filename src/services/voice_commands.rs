@@ -41,6 +41,8 @@ pub enum VoiceCommandError {
     PermissionDenied(String),
     #[error("Command timeout")]
     Timeout,
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
     #[error("Context validation failed: {0}")]
     ContextValidationFailed(String),
 }
@@ -85,6 +87,13 @@ pub struct SystemContext {
     pub recent_commands: VecDeque<ExecutedCommand>,
     pub session_data: HashMap<String, serde_json::Value>,
     pub environment: EnvironmentContext,
+}
+
+/// Service context that holds references to actual services
+/// This is not Clone because it contains Arc<Mutex<...>> references
+#[derive(Debug)]
+pub struct ServiceContext {
+    pub audio_session_manager: Option<std::sync::Arc<std::sync::Mutex<crate::services::audio_session_manager::AudioSessionManager>>>,
 }
 
 /// System operating mode
@@ -178,7 +187,7 @@ pub enum PatternType {
 /// Voice command trait for extensible command system
 pub trait VoiceCommand: Send + Sync {
     /// Execute the command with given parameters and context
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError>;
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError>;
     
     /// Get all voice patterns that trigger this command
     fn get_patterns(&self) -> Vec<PatternType>;
@@ -240,6 +249,8 @@ pub struct VoiceCommandEngine {
     history: VecDeque<ExecutedCommand>,
     /// System context
     context: SystemContext,
+    /// Service context
+    services: Option<ServiceContext>,
     /// Configuration
     config: VoiceCommandConfig,
     /// Performance metrics
@@ -304,6 +315,7 @@ impl VoiceCommandEngine {
             patterns: Vec::new(),
             history: VecDeque::new(),
             context: SystemContext::default(),
+            services: None,
             config: VoiceCommandConfig::default(),
             metrics: CommandMetrics::default(),
         }
@@ -316,6 +328,7 @@ impl VoiceCommandEngine {
             patterns: Vec::new(),
             history: VecDeque::new(),
             context: SystemContext::default(),
+            services: None,
             config,
             metrics: CommandMetrics::default(),
         }
@@ -403,7 +416,7 @@ impl VoiceCommandEngine {
         // Execute with timeout
         let result = tokio::time::timeout(
             self.config.command_timeout,
-            async { command.execute(params.clone(), &mut self.context) }
+            async { command.execute(params.clone(), &mut self.context, self.services.as_ref()) }
         ).await;
         
         let execution_time = start_time.elapsed();
@@ -537,6 +550,11 @@ impl VoiceCommandEngine {
     /// Update system context
     pub fn update_context(&mut self, context: SystemContext) {
         self.context = context;
+    }
+    
+    /// Set service context
+    pub fn set_service_context(&mut self, services: ServiceContext) {
+        self.services = Some(services);
     }
     
     /// Pattern matching implementation
@@ -790,7 +808,7 @@ mod tests {
     struct TestCommand;
     
     impl VoiceCommand for TestCommand {
-        fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+        fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
             Ok(CommandResult::success("Test command executed".to_string()))
         }
         

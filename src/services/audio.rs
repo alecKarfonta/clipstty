@@ -8,6 +8,7 @@ use cpal::{Sample, SampleFormat, Stream};
 use tracing::{error, info};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::fmt;
 
 /// Audio service for managing audio capture and processing
 pub struct AudioService {
@@ -17,7 +18,7 @@ pub struct AudioService {
     selected_device_name: Option<String>,
     vad: Option<Arc<Mutex<VADService>>>,
     vad_callback: Option<Arc<dyn Fn(VADResult) + Send + Sync>>, 
-    audio_callback: Option<Arc<dyn Fn(&[f32], u32) + Send + Sync>>,
+    audio_callbacks: Vec<Arc<dyn Fn(&[f32], u32) + Send + Sync>>,
     ptt_active: bool,
     vad_enabled: bool,
     vad_control: Arc<AtomicU8>,
@@ -33,7 +34,7 @@ impl AudioService {
             selected_device_name: None,
             vad: None,
             vad_callback: None,
-            audio_callback: None,
+            audio_callbacks: Vec::new(),
             ptt_active: false,
             vad_enabled: true,
             vad_control: Arc::new(AtomicU8::new(0)),
@@ -96,7 +97,23 @@ impl AudioService {
     where
         F: Fn(&[f32], u32) + Send + Sync + 'static,
     {
-        self.audio_callback = Some(Arc::new(callback));
+        self.audio_callbacks.push(Arc::new(callback));
+        
+        // If we're already capturing, restart to include the new callback
+        if self.capturing {
+            if let Err(e) = self.restart_capture() {
+                error!("Failed to restart audio capture with new callback: {}", e);
+            }
+        }
+    }
+    
+    /// Restart audio capture (used when callbacks are added during capture)
+    fn restart_capture(&mut self) -> Result<()> {
+        if self.capturing {
+            self.stop_capture()?;
+            self.start_capture()?;
+        }
+        Ok(())
     }
 
     /// Set Push-to-Talk gate state. When using VAD in PushToTalk/Toggle modes,
@@ -180,9 +197,9 @@ impl AudioService {
 
         let control = self.vad_control.clone();
         let stream = match sample_format {
-            SampleFormat::F32 => build_stream::<f32>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callback.clone(), control)?,
-            SampleFormat::I16 => build_stream::<i16>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callback.clone(), control)?,
-            SampleFormat::U16 => build_stream::<u16>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callback.clone(), control)?,
+            SampleFormat::F32 => build_stream::<f32>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callbacks.clone(), control)?,
+            SampleFormat::I16 => build_stream::<i16>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callbacks.clone(), control)?,
+            SampleFormat::U16 => build_stream::<u16>(&device, &config, err_fn, self.vad.clone(), self.vad_callback.clone(), self.audio_callbacks.clone(), control)?,
             _ => return Err(crate::core::error::AudioError::UnsupportedFormat(format!("{sample_format:?}")).into()),
         };
 
@@ -317,7 +334,7 @@ fn build_stream<T>(
     err_fn: impl Fn(cpal::StreamError) + Send + 'static,
     vad: Option<Arc<Mutex<VADService>>>,
     vad_callback: Option<Arc<dyn Fn(VADResult) + Send + Sync>>, 
-    audio_cb: Option<Arc<dyn Fn(&[f32], u32) + Send + Sync>>,
+    audio_callbacks: Vec<Arc<dyn Fn(&[f32], u32) + Send + Sync>>,
     vad_control: Arc<AtomicU8>,
 ) -> Result<Stream>
 where
@@ -362,8 +379,8 @@ where
                     }
                 }
 
-                // Emit raw audio frame to registered listener
-                if let Some(cb) = audio_cb.as_ref() {
+                // Emit raw audio frame to all registered listeners
+                for cb in &audio_callbacks {
                     (cb)(&mono, sample_rate);
                 }
             },
@@ -372,4 +389,21 @@ where
         )
         .map_err(|e| crate::core::error::AudioError::CaptureStart(e.to_string()))?;
     Ok(stream)
+}
+
+impl fmt::Debug for AudioService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AudioService")
+            .field("capturing", &self.capturing)
+            .field("selected_device_name", &self.selected_device_name)
+            .field("ptt_active", &self.ptt_active)
+            .field("vad_enabled", &self.vad_enabled)
+            .field("input_device", &self.input_device.as_ref().map(|_| "Device"))
+            .field("input_stream", &self.input_stream.as_ref().map(|_| "Stream"))
+            .field("vad", &self.vad)
+            .field("vad_callback", &self.vad_callback.as_ref().map(|_| "Callback"))
+            .field("audio_callbacks", &format!("{} callbacks", self.audio_callbacks.len()))
+            .field("vad_control", &self.vad_control)
+            .finish()
+    }
 }

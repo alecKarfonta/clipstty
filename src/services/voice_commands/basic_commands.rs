@@ -13,7 +13,7 @@ use super::*;
 pub struct EnableVADCommand;
 
 impl VoiceCommand for EnableVADCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.audio_state.vad_enabled = true;
         
         Ok(CommandResult::success("Voice Activity Detection enabled".to_string())
@@ -65,7 +65,7 @@ impl VoiceCommand for EnableVADCommand {
 pub struct DisableVADCommand;
 
 impl VoiceCommand for DisableVADCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.audio_state.vad_enabled = false;
         
         Ok(CommandResult::success("Voice Activity Detection disabled".to_string())
@@ -117,7 +117,7 @@ impl VoiceCommand for DisableVADCommand {
 pub struct IncreaseSensitivityCommand;
 
 impl VoiceCommand for IncreaseSensitivityCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let old_sensitivity = context.audio_state.sensitivity;
         context.audio_state.sensitivity = (old_sensitivity + 0.05).min(1.0);
         
@@ -169,7 +169,7 @@ impl VoiceCommand for IncreaseSensitivityCommand {
 pub struct DecreaseSensitivityCommand;
 
 impl VoiceCommand for DecreaseSensitivityCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let old_sensitivity = context.audio_state.sensitivity;
         context.audio_state.sensitivity = (old_sensitivity - 0.05).max(0.0);
         
@@ -221,7 +221,7 @@ impl VoiceCommand for DecreaseSensitivityCommand {
 pub struct ToggleInstantOutputCommand;
 
 impl VoiceCommand for ToggleInstantOutputCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.stt_state.instant_output = !context.stt_state.instant_output;
         
         let mode = if context.stt_state.instant_output { "enabled" } else { "disabled" };
@@ -274,7 +274,7 @@ impl VoiceCommand for ToggleInstantOutputCommand {
 pub struct EnableNarrationCommand;
 
 impl VoiceCommand for EnableNarrationCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.current_mode = SystemMode::Narration;
         
         Ok(CommandResult::success("Continuous narration mode enabled".to_string())
@@ -324,7 +324,7 @@ impl VoiceCommand for EnableNarrationCommand {
 pub struct DisableNarrationCommand;
 
 impl VoiceCommand for DisableNarrationCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         context.current_mode = SystemMode::Normal;
         
         Ok(CommandResult::success("Continuous narration mode disabled".to_string())
@@ -374,7 +374,7 @@ impl VoiceCommand for DisableNarrationCommand {
 pub struct SetSensitivityCommand;
 
 impl VoiceCommand for SetSensitivityCommand {
-    fn execute(&self, params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         // Extract number from command text
         let regex = Regex::new(r"sensitivity to ([\d.]+)").unwrap();
         if let Some(captures) = regex.captures(&params.text) {
@@ -440,7 +440,7 @@ impl VoiceCommand for SetSensitivityCommand {
 pub struct ShowStatusCommand;
 
 impl VoiceCommand for ShowStatusCommand {
-    fn execute(&self, _params: CommandParams, context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let mut status_data = HashMap::new();
         status_data.insert("mode".to_string(), serde_json::Value::String(format!("{:?}", context.current_mode)));
         status_data.insert("vad_enabled".to_string(), serde_json::Value::Bool(context.audio_state.vad_enabled));
@@ -509,7 +509,7 @@ impl VoiceCommand for ShowStatusCommand {
 pub struct ShowHelpCommand;
 
 impl VoiceCommand for ShowHelpCommand {
-    fn execute(&self, _params: CommandParams, _context: &mut SystemContext) -> Result<CommandResult, VoiceCommandError> {
+    fn execute(&self, _params: CommandParams, _context: &mut SystemContext, _services: Option<&ServiceContext>) -> Result<CommandResult, VoiceCommandError> {
         let help_text = "Available Voice Commands:\n\
             • 'enable vad' / 'disable vad' - Control voice detection\n\
             • 'increase sensitivity' / 'decrease sensitivity' - Adjust sensitivity\n\

@@ -8,6 +8,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, BufWriter, Read, Write, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
+use std::fmt;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -65,6 +66,7 @@ pub struct SessionMetadata {
 }
 
 /// Audio file manager for storage operations
+#[derive(Debug)]
 pub struct AudioFileManager {
     /// Base directory
     base_path: PathBuf,
@@ -924,6 +926,27 @@ impl Default for StorageConfig {
             index_update_interval: Duration::from_secs(60),
             backup_config: None,
         }
+    }
+}
+
+impl fmt::Debug for FileAudioStorage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FileAudioStorage")
+            .field("storage_path", &self.storage_path)
+            .field("session_index", &self.session_index)
+            .field("file_manager", &self.file_manager)
+            .field("compression_engine", &"CompressionEngine")
+            .finish()
+    }
+}
+
+impl fmt::Debug for CompressionEngine {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CompressionEngine")
+            .field("compressors", &format!("{} compressors", self.compressors.len()))
+            .field("stats", &self.stats)
+            .field("config", &self.config)
+            .finish()
     }
 }
 
