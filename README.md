@@ -1,5 +1,7 @@
 # STT Clippy 🎤✂️
 
+Tired of typing instructions to your AI? 
+
 **Transform your voice into text, anywhere, anytime.**
 
 STT Clippy is a powerful desktop application that converts speech to text with a simple hotkey press. Whether you're writing emails, taking notes, or coding, just press a key, speak, and watch your words appear instantly.
