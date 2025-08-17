@@ -23,6 +23,8 @@ STT Clippy is a powerful desktop application that converts speech to text with a
 
 ## 🚀 Quick Start
 
+> **Platform Note**: STT Clippy has been primarily tested on **macOS**. While it should work on Linux and Windows, some features may require additional configuration or testing.
+
 ### 1. Install Rust
 ```bash
 # Install Rust toolchain (if you don't have it)
@@ -43,7 +45,18 @@ curl -L -o ggml-large-v3-turbo-q8_0.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true
 ```
 
-### 4. Run STT Clippy
+### 4. Set Environment Variables (Recommended)
+```bash
+# Set the path to your downloaded Whisper model
+export WHISPER_MODEL_PATH="./ggml-large-v3-turbo-q8_0.bin"
+
+# Optional: Optimize performance
+export WHISPER_THREADS=8                    # Match your CPU cores
+export WHISPER_USE_GPU=1                    # Enable GPU acceleration (macOS)
+export WHISPER_LANGUAGE="auto"              # Set default language
+```
+
+### 5. Run STT Clippy
 ```bash
 # Basic STT to clipboard
 cargo run --bin stt_to_clipboard
@@ -52,7 +65,7 @@ cargo run --bin stt_to_clipboard
 cargo run --bin stt-clippy --features local-stt
 ```
 
-### 5. Test It Out
+### 6. Test It Out
 1. Press `Ctrl+Alt+S` (default hotkey)
 2. Speak clearly into your microphone
 3. Your text appears in the clipboard! 🎉
@@ -134,9 +147,23 @@ cargo run --bin debug_audio_recording
 <summary><strong>Click to expand advanced configuration</strong></summary>
 
 ### Environment Variables
+
+**Core Configuration:**
 - `WHISPER_MODEL_PATH`: Path to Whisper model file (default: `ggml-large-v3-turbo-q8_0.bin`)
-- `WHISPER_THREADS`: Number of CPU threads to use
-- `WHISPER_USE_GPU`: Enable GPU acceleration (`1` for on, `0` for off)
+- `WHISPER_LANGUAGE`: Language code for transcription (default: `auto`, options: `en`, `es`, `fr`, `de`, etc.)
+
+**Performance Tuning:**
+- `WHISPER_THREADS`: Number of CPU threads to use (default: auto-detect, recommended: match CPU cores)
+- `WHISPER_USE_GPU`: Enable GPU acceleration (`1` for on, `0` for off, macOS only)
+
+**Audio Settings:**
+- `AUDIO_SAMPLE_RATE`: Audio sample rate in Hz (default: `16000`)
+- `VAD_SENSITIVITY`: Voice activity detection sensitivity (default: `0.5`, range: `0.0-1.0`)
+- `VAD_TIMEOUT`: Silence timeout in milliseconds (default: `2000`)
+
+**Debug & Logging:**
+- `RUST_LOG`: Set logging level (`debug`, `info`, `warn`, `error`)
+- `STT_DEBUG`: Enable STT debugging output (`1` for on, `0` for off)
 
 ### Configuration File
 On first run, `stt-clippy.toml` is created in your user config directory:
