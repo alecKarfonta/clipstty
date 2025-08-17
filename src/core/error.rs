@@ -73,6 +73,21 @@ pub enum AudioError {
 
     #[error("VAD initialization failed: {0}")]
     VADInit(String),
+
+    #[error("Audio playback failed: {0}")]
+    PlaybackError(String),
+
+    #[error("Already recording - stop current session first")]
+    AlreadyRecording,
+
+    #[error("Storage error: {0}")]
+    StorageError(String),
+
+    #[error("Session not found: {0}")]
+    SessionNotFound(uuid::Uuid),
+
+    #[error("Compression error: {0}")]
+    CompressionError(String),
 }
 
 /// STT-related errors

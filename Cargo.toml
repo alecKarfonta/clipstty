@@ -29,6 +29,9 @@ cpal = "0.15"
 hound = "3.1"
 dasp = "0.11"
 
+# Text-to-Speech for testing feedback
+tts = "0.26"
+
 # STT and VAD
 # Enable Metal backend on macOS for GPU acceleration
 whisper-rs = { version = "0.14", optional = true, features = ["metal"] }
@@ -68,11 +71,13 @@ hex = "0.4"
 regex = "1.0"
 lazy_static = "1.4"
 num_cpus = "1.16"
+crossterm = "0.27"
+rand = "0.8"
+tempfile = "3.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.11"
-tempfile = "3.0"
 assert_fs = "1.0"
 
 [features]
@@ -95,6 +100,26 @@ debug = true
 [[bin]]
 name = "stt-clippy"
 path = "src/main.rs"
+
+[[bin]]
+name = "test_recorder"
+path = "src/bin/test_recorder.rs"
+
+[[bin]]
+name = "test_tts_simple"
+path = "src/bin/test_tts_simple.rs"
+
+[[bin]]
+name = "debug_tts"
+path = "src/bin/debug_tts.rs"
+
+[[bin]]
+name = "test_enhanced_session_manager"
+path = "src/bin/test_enhanced_session_manager.rs"
+
+[[bin]]
+name = "debug_audio_recording"
+path = "src/bin/debug_audio_recording.rs"
 
 [lib]
 name = "stt_clippy"

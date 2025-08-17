@@ -2,10 +2,11 @@
 
 use crate::{core::config::STTConfig, core::types::*, Result, SUPPORTED_STT_MODELS};
 use std::time::Instant;
+use std::fmt;
 use tracing::{info, warn, debug, error};
 
 #[cfg(feature = "local-stt")]
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState};
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, install_logging_hooks};
 
 /// Backend interface for STT engines
 pub trait STTBackend {
@@ -22,6 +23,9 @@ struct LocalWhisperBackend {
 #[cfg(feature = "local-stt")]
 impl LocalWhisperBackend {
     fn new(cfg: &STTConfig) -> Result<Self> {
+        // Suppress verbose whisper.cpp logging output
+        install_logging_hooks();
+
         // Styled log helpers
         const C_CLASS: &str = "\x1b[35m"; // magenta
         const C_FUNC: &str = "\x1b[36m"; // cyan
@@ -29,11 +33,8 @@ impl LocalWhisperBackend {
         const C_VAL: &str = "\x1b[32m"; // green
         const C_RESET: &str = "\x1b[0m";
 
-        let model_path = std::env::var("WHISPER_MODEL_PATH").map_err(|_| {
-            crate::core::error::STTError::ModelNotFound(
-                "Environment variable WHISPER_MODEL_PATH not set".to_string(),
-            )
-        })?;
+        let model_path = std::env::var("WHISPER_MODEL_PATH")
+            .unwrap_or_else(|_| "ggml-large-v3-turbo-q8_0.bin".to_string());
         let model_path = model_path.trim().to_string();
         if model_path.is_empty() {
             return Err(crate::core::error::STTError::ModelNotFound(
@@ -61,11 +62,7 @@ impl LocalWhisperBackend {
         };
         if use_gpu { ctx_params.use_gpu(true); }
 
-        info!(target: "stt", "[{}LocalWhisperBackend{}].{}new{} {}model_path{}={}{}{}, {}use_gpu{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, model_path, C_RESET,
-            C_VAR, C_RESET, C_VAL, use_gpu, C_RESET,
-        );
+        info!(target: "stt", "Whisper backend initialized: model={}, gpu={}", model_path, use_gpu);
 
         let ctx = WhisperContext::new_with_params(&model_path, ctx_params).map_err(|e| {
             crate::core::error::STTError::ModelLoad(format!(
@@ -88,19 +85,7 @@ impl LocalWhisperBackend {
 impl STTBackend for LocalWhisperBackend {
     fn transcribe(&mut self, audio: &[AudioSample], cfg: &STTConfig, model: &str) -> Result<STTResult> {
         let start_time = Instant::now();
-
-        // Styled log helpers
-        const C_CLASS: &str = "\x1b[35m"; // magenta
-        const C_FUNC: &str = "\x1b[36m"; // cyan
-        const C_VAR: &str = "\x1b[33m"; // yellow
-        const C_VAL: &str = "\x1b[32m"; // green
-        const C_RESET: &str = "\x1b[0m";
-
-        debug!(target: "stt", "[{}LocalWhisperBackend{}].{}transcribe{} {}model_path{}={}{}{}, {}model{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, self.model_path, C_RESET,
-            C_VAR, C_RESET, C_VAL, model, C_RESET,
-        );
+        debug!(target: "stt", "Starting transcription: {} samples", audio.len());
 
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         let threads = std::env::var("WHISPER_THREADS")
@@ -109,25 +94,23 @@ impl STTBackend for LocalWhisperBackend {
             .filter(|&n| n > 0)
             .unwrap_or(num_cpus::get() as i32);
         params.set_n_threads(threads);
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} {}threads{}={}{}{}, {}language{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, threads, C_RESET,
-            C_VAR, C_RESET, C_VAL, if cfg.language.is_empty() { "auto" } else { &cfg.language }, C_RESET,
+        
+        // Suppress verbose output from whisper
+        params.set_print_progress(false);
+        params.set_print_realtime(false);
+        params.set_print_timestamps(false);
+        debug!(target: "stt", "Transcription config: threads={}, language={}", 
+            threads, 
+            if cfg.language.is_empty() { "auto" } else { &cfg.language }
         );
         params.set_translate(false);
         // Force English by default to avoid language auto-detection overhead unless overridden
         let lang = if cfg.language.is_empty() { "en" } else { cfg.language.as_str() };
         params.set_language(Some(lang));
 
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} {}audio_len{}={}{}{} samples",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, audio.len(), C_RESET
-        );
+
         if let Err(e) = self.state.full(params, audio) {
-            error!(target: "stt", "[{}STTService{}].{}transcribe{} {}error{}={}{}{}",
-                C_CLASS, C_RESET, C_FUNC, C_RESET,
-                C_VAR, C_RESET, C_VAL, e, C_RESET
-            );
+            error!(target: "stt", "Whisper processing failed: {}", e);
             return Err(crate::core::error::STTError::Processing(format!("Whisper processing failed: {}", e)).into());
         }
 
@@ -139,6 +122,9 @@ impl STTBackend for LocalWhisperBackend {
             )))?;
 
         let mut text = String::new();
+        let mut total_log_prob = 0.0f32;
+        let mut total_tokens = 0i32;
+        
         for i in 0..num_segments {
             let seg = self.state
                 .full_get_segment_text(i)
@@ -147,23 +133,49 @@ impl STTBackend for LocalWhisperBackend {
                     i, e
                 )))?;
             text.push_str(&seg);
+            
+            // Calculate log probabilities for this segment
+            let num_tokens = self.state
+                .full_n_tokens(i)
+                .map_err(|e| crate::core::error::STTError::Processing(format!(
+                    "Failed to get token count for segment {}: {}",
+                    i, e
+                )))?;
+            
+            for j in 0..num_tokens {
+                if let Ok(token_prob) = self.state.full_get_token_prob(i, j) {
+                    // Convert probability to log probability
+                    if token_prob > 0.0 {
+                        total_log_prob += token_prob.ln();
+                        total_tokens += 1;
+                    }
+                }
+            }
         }
 
         let processing_ms = start_time.elapsed().as_millis() as u64;
         let audio_sec = (audio.len() as f64) / 16000.0_f64;
         let wall_sec = (processing_ms as f64) / 1000.0_f64;
         let rtf = if audio_sec > 0.0 { wall_sec / audio_sec } else { 0.0 };
-        debug!(target: "stt", "[{}STTService{}].{}transcribe{} completed {}backend{}={}{}{}, {}model{}={}{}{}, {}duration_ms{}={}{}{}, {}audio_s{}={}{}{}, {}wall_s{}={}{}{}, {}rtf{}={}{}{}",
-            C_CLASS, C_RESET, C_FUNC, C_RESET,
-            C_VAR, C_RESET, C_VAL, "local", C_RESET,
-            C_VAR, C_RESET, C_VAL, model, C_RESET,
-            C_VAR, C_RESET, C_VAL, processing_ms, C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", audio_sec), C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", wall_sec), C_RESET,
-            C_VAR, C_RESET, C_VAL, format!("{:.3}", rtf), C_RESET,
-        );
+        
+        // Calculate average log probability
+        let avg_log_prob = if total_tokens > 0 {
+            Some(total_log_prob / total_tokens as f32)
+        } else {
+            None
+        };
+        
+        debug!(target: "stt", "Transcription completed: {}ms (RTF: {:.2}x), avg_log_prob: {:?}", 
+               processing_ms, rtf, avg_log_prob);
 
-        Ok(STTResult::new(text, 1.0, model.to_string(), "local".to_string()).with_processing_time(processing_ms))
+        let mut result = STTResult::new(text, 1.0, model.to_string(), "local".to_string())
+            .with_processing_time(processing_ms);
+        
+        if let Some(log_prob) = avg_log_prob {
+            result = result.with_log_probability(log_prob);
+        }
+        
+        Ok(result)
     }
 }
 
@@ -270,5 +282,16 @@ impl STTService {
         self.selected_model = cfg.model_size.clone();
         self.config = cfg;
         Ok(())
+    }
+}
+
+impl fmt::Debug for STTService {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("STTService")
+            .field("config", &self.config)
+            .field("selected_model", &self.selected_model)
+            .field("backend", &self.backend)
+            .field("local_backend", &self.local_backend.as_ref().map(|_| "LocalWhisperBackend"))
+            .finish()
     }
 }

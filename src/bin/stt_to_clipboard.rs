@@ -3,43 +3,131 @@ use std::time::{Duration, Instant};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use stt_clippy::services::{audio::AudioService, clipboard::ClipboardService, paste::PasteService, stt::STTService};
+use stt_clippy::services::{
+    audio::AudioService, 
+    clipboard::ClipboardService, 
+    paste::PasteService, 
+    stt::STTService,
+    audio_session_manager::{AudioSessionManager, SessionConfig},
+    voice_commands::{comprehensive_registry::create_comprehensive_command_engine, ServiceContext},
+};
 use tracing::{info, debug, error};
 use tracing_subscriber::prelude::*;
+use std::path::PathBuf;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// Get the data directory for clipstty, creating it if it doesn't exist
+fn get_data_directory() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let data_dir = if let Ok(custom_dir) = std::env::var("CLIPSTTY_DATA_DIR") {
+        // Handle ~ expansion manually
+        if custom_dir.starts_with("~/") {
+            let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+            PathBuf::from(home).join(&custom_dir[2..])
+        } else {
+            PathBuf::from(custom_dir)
+        }
+    } else {
+        let home = std::env::var("HOME").map_err(|_| "HOME environment variable not set")?;
+        PathBuf::from(home).join(".clipstty")
+    };
+    
+    // Create the directory if it doesn't exist
+    if !data_dir.exists() {
+        std::fs::create_dir_all(&data_dir)?;
+        info!("Created data directory: {}", data_dir.display());
+    }
+    
+    // Create sessions subdirectory
+    let sessions_dir = data_dir.join("sessions");
+    if !sessions_dir.exists() {
+        std::fs::create_dir_all(&sessions_dir)?;
+        info!("Created sessions directory: {}", sessions_dir.display());
+    }
+    
+    Ok(data_dir)
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // setup tracing to stdout with colors
     init_logging();
     
     // Print usage statement
     println!("╭─────────────────────────────────────────────────────────────────────────╮");
-    println!("│                        STT to Clipboard Runner                         │");
+    println!("│                      ClipSTTy - Voice-to-Text Suite                    │");
+    println!("│              Advanced Speech Recognition & Voice Commands               │");
     println!("╰─────────────────────────────────────────────────────────────────────────╯");
     println!();
     println!("USAGE:");
-    println!("  WHISPER_MODEL_PATH=<path> [OPTIONS] ./stt_to_clipboard");
+    println!("  [WHISPER_MODEL_PATH=<path>] [OPTIONS] ./stt_to_clipboard");
     println!();
-    println!("REQUIRED:");
+    println!("ENVIRONMENT VARIABLES:");
     println!("  WHISPER_MODEL_PATH      Path to Whisper model file (.bin format)");
+    println!("                          Default: ggml-large-v3-turbo-q8_0.bin");
     println!();
-    println!("OPTIONAL:");
+    println!("OPTIONAL ENVIRONMENT VARIABLES:");
     println!("  ENERGY_THRESHOLD_HIGH   Speech detection threshold (default: 0.001)");
     println!("  ENERGY_THRESHOLD_LOW    Silence detection threshold (default: 0.0001)");
     println!("  ENERGY_LOG_COOLDOWN_MS  Energy log cooldown in ms (default: 100)");
+    println!("  CLIPSTTY_DATA_DIR       Data directory for transcripts (default: ~/.clipstty)");
+    println!("  CLIPSTTY_LOG_LEVEL      Logging level: debug, info, warn, error (default: info)");
     println!();
     println!("EXAMPLES:");
-    println!("  # Basic usage with local model");
+    println!("  # Basic usage with default model");
+    println!("  ./stt_to_clipboard");
+    println!();
+    println!("  # With custom model");
     println!("  WHISPER_MODEL_PATH=./models/ggml-base.en.bin ./stt_to_clipboard");
     println!();
-    println!("  # With custom energy thresholds");
+    println!("  # With custom settings and data directory");
     println!("  WHISPER_MODEL_PATH=./models/ggml-small.bin \\");
     println!("    ENERGY_THRESHOLD_HIGH=0.002 \\");
-    println!("    ENERGY_THRESHOLD_LOW=0.0002 ./stt_to_clipboard");
+    println!("    CLIPSTTY_DATA_DIR=~/my_transcripts \\");
+    println!("    CLIPSTTY_LOG_LEVEL=debug ./stt_to_clipboard");
     println!();
-    println!("MODELS:");
+    println!("WHISPER MODELS:");
     println!("  Download from: https://huggingface.co/ggerganov/whisper.cpp");
-    println!("  Supported: tiny (~40MB), base (~150MB), small (~500MB),");
-    println!("             medium (~1.5GB), large (~3GB)");
+    println!("  • tiny (~40MB)    - Fastest, basic accuracy");
+    println!("  • base (~150MB)   - Good balance of speed/accuracy");
+    println!("  • small (~500MB)  - Better accuracy, slower");
+    println!("  • medium (~1.5GB) - High accuracy, much slower");
+    println!("  • large (~3GB)    - Best accuracy, slowest");
+    println!();
+    println!("🎯 CORE FEATURES:");
+    println!("  ✓ Real-time speech-to-text transcription");
+    println!("  ✓ Intelligent voice activity detection (VAD)");
+    println!("  ✓ Automatic clipboard integration");
+    println!("  ✓ Direct text injection (instant paste mode)");
+    println!("  ✓ Continuous narration/dictation mode");
+    println!("  ✓ 87+ voice commands across 6 categories");
+    println!("  ✓ Audio recording and session management");
+    println!("  ✓ Comprehensive transcription logging");
+    println!("  ✓ Intelligent duplicate detection");
+    println!("  ✓ Advanced search and analytics");
+    println!();
+    println!("🎤 VOICE COMMAND CATEGORIES (87+ total commands):");
+    println!("  • Basic Commands (10): VAD control, sensitivity, output modes");
+    println!("  • Audio Commands (12): Recording, playback, device management");
+    println!("  • Recording Commands (8): Session control, compression, storage");
+    println!("  • STT Commands (11): Model switching, language settings");
+    println!("  • System Commands (12): Clipboard, hotkeys, system integration");
+    println!("  • Transcription Management (12): Search, export, analytics");
+    println!("  • Specialized Commands (22+): Advanced features and workflows");
+    println!();
+    println!("📊 TRANSCRIPTION FEATURES:");
+    println!("  • Automatic logging with metadata (confidence, timestamps)");
+    println!("  • Intelligent deduplication (85% similarity threshold)");
+    println!("  • Full-text search with TF-IDF scoring");
+    println!("  • Tag-based organization and filtering");
+    println!("  • Usage analytics and accuracy tracking");
+    println!("  • Export capabilities (JSON, text, CSV)");
+    println!("  • Backup and restore functionality");
+    println!();
+    println!("🔊 AUDIO CAPABILITIES:");
+    println!("  • Multi-format recording (WAV, FLAC, MP3)");
+    println!("  • Automatic compression and archival");
+    println!("  • Session-based organization");
+    println!("  • Storage management and cleanup");
+    println!("  • Device selection and configuration");
     println!();
     println!("NOTE: Larger models provide better accuracy but slower processing");
     println!("─────────────────────────────────────────────────────────────────────────");
@@ -68,8 +156,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "╰─────────────────────────────────────────────────────");
     println!();
     
-    // Ensure model path is provided for local backend
-    let model_path = std::env::var("WHISPER_MODEL_PATH")?;
+    // Get model path (with default fallback)
+    let model_path = std::env::var("WHISPER_MODEL_PATH")
+        .unwrap_or_else(|_| "ggml-large-v3-turbo-q8_0.bin".to_string());
     println!("Using WHISPER_MODEL_PATH={}", model_path);
     log_kv("stt_to_clipboard", "main", "WHISPER_MODEL_PATH", &model_path);
     
@@ -167,13 +256,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "╰─────────────────────────────────────────────────────");
     println!();
 
+    // Initialize data directory first
+    let data_dir = get_data_directory()?;
+    info!(target: "runner", "[stt_to_clipboard].main data directory: {}", data_dir.display());
+
     // Capture audio continuously with simple segment window
     info!(target: "runner", "[stt_to_clipboard].main initializing audio service");
     let mut audio_service = AudioService::new()?;
     info!(target: "runner", "[stt_to_clipboard].main audio service initialized");
     
+    // Create AudioSessionManager for recording functionality
+    let audio_service_arc = Arc::new(Mutex::new(audio_service));
+    let session_config = SessionConfig::default();
+    let audio_session_manager = Arc::new(Mutex::new(
+        AudioSessionManager::new(
+            audio_service_arc.clone(),
+            data_dir.clone(),
+            session_config,
+        )?
+    ));
+    info!(target: "runner", "[stt_to_clipboard].main audio session manager initialized");
+    
     // Get and log available audio devices
-    if let Ok(devices) = audio_service.get_devices() {
+    if let Ok(devices) = audio_service_arc.lock().unwrap().get_devices() {
         info!(target: "runner", "[stt_to_clipboard].main available audio devices:");
         for device in devices {
             if device.device_type == stt_clippy::core::types::AudioDeviceType::Input {
@@ -188,7 +293,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let captured_ref = captured.clone();
     let sample_rate_holder: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
     let sr_ref = sample_rate_holder.clone();
-    audio_service.on_audio_frame(move |frame, _sr| {
+    audio_service_arc.lock().unwrap().on_audio_frame(move |frame, _sr| {
         if let Ok(mut buf) = captured_ref.lock() {
             buf.extend_from_slice(frame);
         }
@@ -197,7 +302,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    audio_service.start_capture()?;
+    audio_service_arc.lock().unwrap().start_capture()?;
     info!(target: "runner", "[stt_to_clipboard].main started audio capture");
 
     let mut stt = STTService::new()?;
@@ -216,10 +321,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let mut clipboard = ClipboardService::new()?;
     info!(target: "runner", "[stt_to_clipboard].main clipboard service initialized");
+    
+
+    
+    // Initialize comprehensive voice command engine
+    let mut voice_command_engine = create_comprehensive_command_engine();
+    
+    // Create service context and connect AudioSessionManager
+    let service_context = ServiceContext {
+        audio_session_manager: Some(audio_session_manager.clone()),
+    };
+    voice_command_engine.set_service_context(service_context);
+    
+    info!(target: "runner", "[stt_to_clipboard].main voice command engine initialized with 87+ commands and connected to audio session manager");
+    
     let mut instant_output: bool = false;
     let mut narration_enabled: bool = false; // not used for continuous injection in this runner
     // Cooldown to prevent duplicate command triggers back-to-back
-    let mut last_command: Option<VoiceCommand> = None;
+    let mut last_command_text: Option<String> = None;
     let mut last_command_instant: Option<Instant> = None;
     let command_cooldown = Duration::from_millis(1500);
     // Quiet period after command: skip STT to avoid feedback/retrigger
@@ -243,7 +362,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "  - Hangover: {}ms", hangover_ms);
     info!(target: "runner", "  - Min speech: {}ms", min_speech_ms);
     
-    info!(target: "runner", "[stt_to_clipboard].main initialization complete - ready to process audio");
+    info!(target: "runner", "[ClipSTTy].main initialization complete - ready to process audio");
     
     // Performance characteristics summary
     info!(target: "runner", "╭─ Performance Characteristics ───────────────────────");
@@ -254,16 +373,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(target: "runner", "│ Command cooldown:   {}ms (duplicate prevention)", command_cooldown.as_millis());
     info!(target: "runner", "│ TTS quiet period:   {}ms (feedback prevention)", 3000);
     info!(target: "runner", "│ Expected RTF:       0.1-0.3x (real-time factor)");
+    info!(target: "runner", "│");
+    info!(target: "runner", "│ ADVANCED FEATURES:");
+    info!(target: "runner", "│ Voice commands:     87+ across 6 categories");
+    info!(target: "runner", "│ Transcription log:  Automatic with deduplication");
+    info!(target: "runner", "│ Audio recording:    Multi-format with compression");
+    info!(target: "runner", "│ Search & analytics: Full-text with TF-IDF scoring");
     info!(target: "runner", "╰─────────────────────────────────────────────────────");
     
-    println!("=== Ready to capture and transcribe audio ===");
+    println!("🚀 === ClipSTTy is Ready - Advanced Voice-to-Text Processing Active === 🚀");
     println!("Speak clearly to begin transcription...");
     println!();
-    println!("Voice Commands:");
+    println!("🎤 BASIC VOICE COMMANDS (Quick Start):");
     println!("  • 'enable vad' / 'disable vad' - Toggle voice activity detection");
     println!("  • 'increase sensitivity' / 'decrease sensitivity' - Adjust VAD sensitivity");
     println!("  • 'toggle instant output' - Switch between clipboard and direct paste");
     println!("  • 'enable narration' / 'disable narration' - Toggle continuous dictation mode");
+    println!();
+    println!("🎵 AUDIO & RECORDING COMMANDS:");
+    println!("  • 'start recording [session_name]' - Begin audio recording");
+    println!("  • 'stop recording' - End current recording");
+    println!("  • 'pause recording' / 'resume recording' - Control recording state");
+    println!("  • 'list audio sessions' - Show all recorded sessions");
+    println!("  • 'compress audio files' - Optimize storage space");
+    println!("  • 'show storage statistics' - Display usage metrics");
+    println!();
+    println!("📝 TRANSCRIPTION MANAGEMENT:");
+    println!("  • 'search transcripts [query]' - Search through transcription history");
+    println!("  • 'show recent transcripts' - Display recently created transcripts");
+    println!("  • 'export transcripts [criteria]' - Export transcripts to file");
+    println!("  • 'delete duplicate transcripts' - Remove duplicate transcriptions");
+    println!("  • 'show transcription statistics' - Display comprehensive analytics");
+    println!("  • 'create transcript backup' - Create backup of all transcriptions");
+    println!("  • 'tag last transcript as [tag]' - Add tags for organization");
+    println!("  • 'find transcripts containing [phrase]' - Find specific phrases");
+    println!("  • 'show transcription accuracy trends' - Display accuracy insights");
+    println!("  • 'show word frequency analysis' - Display word usage patterns");
+    println!();
+    println!("⚙️  SYSTEM & STT COMMANDS:");
+    println!("  • 'switch to [model_name]' - Change Whisper model");
+    println!("  • 'set language to [language]' - Change recognition language");
+    println!("  • 'show system status' - Display system information");
+    println!("  • 'clear clipboard history' - Clean clipboard cache");
+    println!("  • 'show available hotkeys' - List keyboard shortcuts");
+    println!();
+    println!("💡 TIP: Say 'help with voice commands' for the complete list of 87+ commands!");
+    println!("💡 TIP: All transcriptions are automatically logged and searchable!");
+    println!("💡 TIP: Use 'show transcription statistics' to see your usage patterns!");
     println!();
     
     let mut voice_active: bool = false;
@@ -281,12 +437,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut was_above_high_threshold = false;
     let mut was_below_low_threshold = false;
     
-    info!(target: "runner", "[stt_to_clipboard].main starting main processing loop");
-    info!(target: "runner", "[stt_to_clipboard].main voice commands available:");
-    info!(target: "runner", "  - 'enable vad' / 'disable vad' - Toggle voice activity detection");
-    info!(target: "runner", "  - 'increase sensitivity' / 'decrease sensitivity' - Adjust VAD sensitivity");
-    info!(target: "runner", "  - 'toggle instant output' - Switch between clipboard and direct paste");
-    info!(target: "runner", "  - 'enable narration' / 'disable narration' - Toggle continuous dictation mode");
+    info!(target: "runner", "[ClipSTTy].main starting main processing loop");
+    info!(target: "runner", "[ClipSTTy].main voice commands available (87+ total):");
+    info!(target: "runner", "  - Basic: VAD control, sensitivity, output modes");
+    info!(target: "runner", "  - Audio: Recording, playback, device management");
+    info!(target: "runner", "  - Transcription: Search, export, analytics, tagging");
+    info!(target: "runner", "  - System: Model switching, language settings, hotkeys");
+    info!(target: "runner", "  - Advanced: Specialized workflows and automation");
     loop {
         std::thread::sleep(Duration::from_millis(poll_ms));
 
@@ -451,56 +608,111 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let st = Instant::now();
                         match stt.transcribe(&seg_audio) {
                             Ok(result) => {
-                                println!("Transcription: {}", result.text);
+                                // Display transcription with log probability
+                                if let Some(log_prob) = result.log_probability {
+                                    println!("Transcription: {} (log_prob: {:.3})", result.text, log_prob);
+                                } else {
+                                    println!("Transcription: {}", result.text);
+                                }
                                 let wall = st.elapsed();
                                 let audio_s = (seg_audio.len() as f64) / 16000.0_f64;
                                 let wall_s = wall.as_secs_f64();
-                                let rtf = if audio_s > 0.0 { wall_s / audio_s } else { 0.0 };
+                                let rtf = if wall_s > 0.0 { audio_s / wall_s } else { 0.0 };
+                                let log_prob_str = result.log_probability
+                                    .map(|lp| format!(" \x1b[1mlog_prob=\x1b[34m{:.3}\x1b[0m", lp))
+                                    .unwrap_or_default();
                                 info!(
                                     target: "runner",
-                                    "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m",
+                                    "\x1b[1m[stt_to_clipboard].main transcribed\x1b[0m \x1b[1mlen=\x1b[32m{}\x1b[0m \x1b[1mtext=\x1b[36m\"{}\"\x1b[0m \x1b[1maudio_s=\x1b[33m{:.3}\x1b[0m \x1b[1mwall_s=\x1b[35m{:.3}\x1b[0m \x1b[1mrtf=\x1b[31m{:.3}\x1b[0m{}",
                                     result.text.len(),
                                     result.text,
                                     audio_s,
                                     wall_s,
-                                    rtf
+                                    rtf,
+                                    log_prob_str
                                 );
-                                // Command recognition: intercept voice commands
-                                if let Some(cmd) = parse_voice_command(&result.text) {
-                                    let now = Instant::now();
-                                    let suppress = match (last_command, last_command_instant) {
-                                        (Some(prev), Some(ts)) if prev == cmd && now.duration_since(ts) < command_cooldown => true,
-                                        _ => false,
-                                    };
-                                    if suppress {
-                                        info!(target: "runner", "Suppressing duplicate voice command within cooldown");
-                                    } else {
-                                        if let Some(tts_until) = apply_voice_command(cmd, &mut audio_service, &mut instant_output, &mut narration_enabled) {
-                                            tts_quiet_until = Some(tts_until);
+                                // Command recognition: intercept voice commands using comprehensive engine
+                                match voice_command_engine.process_voice_input(&result.text, result.confidence).await {
+                                    Ok(command_result) => {
+                                        let now = Instant::now();
+                                        let suppress = match (last_command_text.as_ref(), last_command_instant) {
+                                            (Some(prev_text), Some(ts)) if prev_text == &result.text && now.duration_since(ts) < command_cooldown => true,
+                                            _ => false,
+                                        };
+                                        if suppress {
+                                            info!(target: "runner", "Suppressing duplicate voice command within cooldown");
+                                        } else {
+                                            info!(target: "runner", "Voice command executed: {}", command_result.message);
+                                            
+                                            // Handle specific command types that affect the runner state
+                                            if let Some(data) = &command_result.data {
+                                                match data {
+                                                    stt_clippy::services::voice_commands::CommandData::Text(text) => {
+                                                        match text.as_str() {
+                                                            "instant_output_enabled" => instant_output = true,
+                                                            "instant_output_disabled" => instant_output = false,
+                                                            "narration_enabled" => narration_enabled = true,
+                                                            "narration_disabled" => narration_enabled = false,
+                                                            _ => {}
+                                                        }
+                                                    }
+                                                    stt_clippy::services::voice_commands::CommandData::Boolean(value) => {
+                                                        // Handle boolean commands based on the command name
+                                                        if command_result.message.contains("Instant output") {
+                                                            instant_output = *value;
+                                                            info!(target: "runner", "[stt_to_clipboard].main instant_output flag updated to: {}", instant_output);
+                                                        }
+                                                    }
+                                                    _ => {}
+                                                }
+                                            }
+                                            
+                                            // Speak the result message for feedback
+                                            speak(&command_result.message);
+                                            tts_quiet_until = Some(Instant::now() + Duration::from_millis(3000));
+                                            
+                                            last_command_text = Some(result.text.clone());
+                                            last_command_instant = Some(now);
+                                            // Clear audio buffer and reset gating to avoid re-processing the same command segment
+                                            if let Ok(mut buf) = captured.lock() { buf.clear(); }
+                                            voice_active = false;
+                                            last_voice_instant = None;
+                                            segment_first_instant = None;
+                                            // Start quiet period to avoid TTS feedback and retrigger
+                                            command_quiet_until = Some(Instant::now() + command_cooldown);
                                         }
-                                        last_command = Some(cmd);
-                                        last_command_instant = Some(now);
-                                        // Clear audio buffer and reset gating to avoid re-processing the same command segment
-                                        if let Ok(mut buf) = captured.lock() { buf.clear(); }
-                                        voice_active = false;
-                                        last_voice_instant = None;
-                                        segment_first_instant = None;
-                                        // Start quiet period to avoid TTS feedback and retrigger
-                                        command_quiet_until = Some(Instant::now() + command_cooldown);
+                                        continue;
                                     }
-                                    continue;
+                                    Err(_) => {
+                                        // Not a recognized command, continue with normal transcription
+                                    }
                                 }
                                 // If there was text transcribed, output based on mode
                                 if !result.text.is_empty() {
                                     if instant_output {
                                         if let Ok(mut p) = PasteService::new() {
                                             // Try direct inject; fall back to clipboard paste
-                                            if p.inject_text(&result.text).is_err() {
-                                                let _ = p.clipboard_paste(&result.text, 100);
+                                            match p.inject_text(&result.text) {
+                                                Ok(()) => {
+                                                    info!(target: "runner", "[stt_to_clipboard].main text injected successfully, length={}", result.text.len());
+                                                }
+                                                Err(e) => {
+                                                    info!(target: "runner", "[stt_to_clipboard].main text injection failed: {}, falling back to clipboard paste", e);
+                                                    match p.clipboard_paste(&result.text, 100) {
+                                                        Ok(()) => {
+                                                            info!(target: "runner", "[stt_to_clipboard].main clipboard paste fallback successful, length={}", result.text.len());
+                                                        }
+                                                        Err(e2) => {
+                                                            error!(target: "runner", "[stt_to_clipboard].main clipboard paste fallback failed: {}", e2);
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            info!(target: "runner", "[stt_to_clipboard].main pasted text_length={}", result.text.len());
-                                        } else if let Err(e) = clipboard.copy_text(&result.text) {
-                                            error!(target: "runner", "[stt_to_clipboard].main clipboard error: {}", e);
+                                        } else {
+                                            error!(target: "runner", "[stt_to_clipboard].main failed to create PasteService, falling back to clipboard");
+                                            if let Err(e) = clipboard.copy_text(&result.text) {
+                                                error!(target: "runner", "[stt_to_clipboard].main clipboard error: {}", e);
+                                            }
                                         }
                                     } else {
                                         if let Err(e) = clipboard.copy_text(&result.text) {
@@ -559,12 +771,17 @@ fn resample_linear(input: &[f32], from_sr: u32, to_sr: u32) -> Vec<f32> {
 
 fn init_logging() {
     use tracing_subscriber::fmt::time::UtcTime;
+    
+    // Allow environment variable to control log level, default to info
+    let log_level = std::env::var("CLIPSTTY_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+    let filter_directive = format!("stt_clippy={},runner={},stt={}", log_level, log_level, log_level);
+    
     let stdout_layer = tracing_subscriber::fmt::layer()
         .with_timer(UtcTime::rfc_3339())
         .with_target(true)
         .with_ansi(true);
     let _ = tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new("stt_clippy=debug,runner=debug,stt=debug"))
+        .with(tracing_subscriber::EnvFilter::new(filter_directive))
         .with(stdout_layer)
         .try_init();
 }
@@ -944,35 +1161,7 @@ impl NarrationState {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum VoiceCommand {
-    EnableVAD,
-    DisableVAD,
-    IncreaseSensitivity,
-    DecreaseSensitivity,
-    ToggleInstantOutput,
-    EnableNarration,
-    DisableNarration,
-}
 
-fn parse_voice_command(transcript: &str) -> Option<VoiceCommand> {
-    let t = transcript.to_lowercase();
-    let candidates: &[(&[&str], VoiceCommand)] = &[
-        (&["enable vad", "enable the vad", "turn on vad", "turn vad on", "start vad", "voice on", "vad on"], VoiceCommand::EnableVAD),
-        (&["disable vad", "disable the vad", "turn off vad", "turn vad off", "stop vad", "voice off", "vad off"], VoiceCommand::DisableVAD),
-        (&["increase sensitivity", "raise sensitivity", "more sensitive", "turn up sensitivity"], VoiceCommand::IncreaseSensitivity),
-        (&["decrease sensitivity", "lower sensitivity", "less sensitive", "turn down sensitivity"], VoiceCommand::DecreaseSensitivity),
-        (&["toggle instant", "toggle instant output", "toggle paste mode", "paste mode"], VoiceCommand::ToggleInstantOutput),
-        (&["enable narration", "enter narration mode", "start narration", "dictation on", "start dictation"], VoiceCommand::EnableNarration),
-        (&["disable narration", "exit narration mode", "stop narration", "dictation off", "stop dictation"], VoiceCommand::DisableNarration),
-    ];
-    for (phrases, cmd) in candidates {
-        if phrases.iter().any(|p| t.contains(p)) {
-            return Some(*cmd);
-        }
-    }
-    None
-}
 
 #[cfg(target_os = "macos")]
 fn speak(text: &str) {
@@ -981,51 +1170,5 @@ fn speak(text: &str) {
 #[cfg(not(target_os = "macos"))]
 fn speak(_text: &str) { }
 
-fn apply_voice_command(cmd: VoiceCommand, audio: &mut AudioService, instant_output: &mut bool, narration_enabled: &mut bool) -> Option<Instant> {
-    let tts_quiet_duration = Duration::from_millis(3000); // 3s quiet after TTS to avoid feedback
-    match cmd {
-        VoiceCommand::EnableVAD => {
-            audio.set_vad_enabled(true);
-            info!(target: "runner", "Voice command: enabled VAD");
-            speak("Enabled V A D");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::DisableVAD => {
-            audio.set_vad_enabled(false);
-            info!(target: "runner", "Voice command: disabled VAD");
-            speak("Disabled V A D");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::IncreaseSensitivity => {
-            audio.adjust_vad_sensitivity(0.05);
-            info!(target: "runner", "Voice command: increased VAD sensitivity");
-            speak("Increased sensitivity");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::DecreaseSensitivity => {
-            audio.adjust_vad_sensitivity(-0.05);
-            info!(target: "runner", "Voice command: decreased VAD sensitivity");
-            speak("Decreased sensitivity");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::ToggleInstantOutput => {
-            *instant_output = !*instant_output;
-            info!(target: "runner", instant_output = *instant_output, "Voice command: toggled instant output");
-            if *instant_output { speak("Instant output on"); } else { speak("Instant output off"); }
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::EnableNarration => {
-            *narration_enabled = true;
-            info!(target: "runner", "Voice command: enabled narration");
-            speak("Narration on");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-        VoiceCommand::DisableNarration => {
-            *narration_enabled = false;
-            info!(target: "runner", "Voice command: disabled narration");
-            speak("Narration off");
-            Some(Instant::now() + tts_quiet_duration)
-        }
-    }
-}
+
 

@@ -1,0 +1,163 @@
+{
+  "session": {
+    "id": "5f3b3a95-60ab-4d90-9533-e2c120d7f476",
+    "name": "Debug Audio Test",
+    "description": "Testing real-time audio capture and buffer monitoring",
+    "start_time": "2025-08-17T14:34:24.235043Z",
+    "end_time": "2025-08-17T14:34:34.405194Z",
+    "duration": {
+      "secs": 10,
+      "nanos": 170151000
+    },
+    "audio_source": "Microphone",
+    "file_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/raw_audio.wav",
+    "file_size": 963628,
+    "format_info": {
+      "sample_rate": 44100,
+      "channels": 1,
+      "bit_depth": 16,
+      "format": "WAV"
+    },
+    "transcript_segments": [
+      {
+        "id": "ddba31f2-8117-4d89-8573-098a6c4ff905",
+        "start_time": {
+          "secs": 1,
+          "nanos": 0
+        },
+        "end_time": {
+          "secs": 4,
+          "nanos": 0
+        },
+        "text": "This is a debug test of the audio recording system.",
+        "confidence": 0.95,
+        "speaker_id": null,
+        "language": null,
+        "word_count": 10,
+        "is_final": true
+      },
+      {
+        "id": "1b924668-ca56-491b-8f42-3b2b379d07a7",
+        "start_time": {
+          "secs": 5,
+          "nanos": 0
+        },
+        "end_time": {
+          "secs": 8,
+          "nanos": 0
+        },
+        "text": "Testing comprehensive output generation.",
+        "confidence": 0.9,
+        "speaker_id": null,
+        "language": null,
+        "word_count": 4,
+        "is_final": true
+      }
+    ],
+    "tags": [
+      "debug",
+      "test"
+    ],
+    "metadata": {},
+    "state": "Stopped",
+    "quality_metrics": {
+      "average_volume": 0.0,
+      "peak_volume": 0.0,
+      "signal_to_noise_ratio": 0.0,
+      "silence_percentage": 0.0,
+      "clipping_events": 0,
+      "vad_accuracy": 0.0
+    }
+  },
+  "outputs": {
+    "raw_audio_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/raw_audio.wav",
+    "cleaned_audio_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/cleaned_audio.wav",
+    "segments_directory": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/segments",
+    "metadata_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/session_metadata.json",
+    "segments": [
+      {
+        "id": "e25347ab-6adb-46b0-b39f-3ca40b7f9ce4",
+        "start_sample": 42336,
+        "end_sample": 119290,
+        "start_time": {
+          "secs": 0,
+          "nanos": 959999979
+        },
+        "end_time": {
+          "secs": 2,
+          "nanos": 704988718
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 744988739
+        },
+        "text": "This is a debug test of the audio recording system.",
+        "confidence": 0.95,
+        "file_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/segments/segment_001_e25347ab-6adb-46b0-b39f-3ca40b7f9ce4.wav",
+        "file_size": 153952,
+        "is_speech": true,
+        "average_energy": 0.0020553374
+      },
+      {
+        "id": "044a7a2f-6339-4c82-98bb-177dbab2679b",
+        "start_sample": 139797,
+        "end_sample": 169123,
+        "start_time": {
+          "secs": 3,
+          "nanos": 170000076
+        },
+        "end_time": {
+          "secs": 3,
+          "nanos": 834988594
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 664988518
+        },
+        "text": "This is a debug test of the audio recording system.",
+        "confidence": 0.95,
+        "file_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/segments/segment_002_044a7a2f-6339-4c82-98bb-177dbab2679b.wav",
+        "file_size": 58696,
+        "is_speech": true,
+        "average_energy": 0.0024626146
+      },
+      {
+        "id": "35e540cb-b8f8-4397-9652-d5efd35ce6cd",
+        "start_sample": 429975,
+        "end_sample": 481792,
+        "start_time": {
+          "secs": 9,
+          "nanos": 750000000
+        },
+        "end_time": {
+          "secs": 10,
+          "nanos": 924988747
+        },
+        "duration": {
+          "secs": 1,
+          "nanos": 174988747
+        },
+        "text": null,
+        "confidence": null,
+        "file_path": "./debug_audio_sessions/sessions/2025/08/17/Debug_Audio_Test_5f3b3a95-60ab-4d90-9533-e2c120d7f476/segments/segment_003_35e540cb-b8f8-4397-9652-d5efd35ce6cd.wav",
+        "file_size": 103678,
+        "is_speech": true,
+        "average_energy": 0.0017792087
+      }
+    ],
+    "total_raw_duration": {
+      "secs": 10,
+      "nanos": 924988747
+    },
+    "total_cleaned_duration": {
+      "secs": 3,
+      "nanos": 584965944
+    },
+    "silence_removed_duration": {
+      "secs": 7,
+      "nanos": 340022564
+    }
+  },
+  "generated_at": "2025-08-17T14:34:34.480782Z",
+  "version": "0.1.0"
+}

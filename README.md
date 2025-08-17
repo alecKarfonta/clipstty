@@ -1,256 +1,224 @@
 # STT Clippy 🎤✂️
 
-**Speech-to-Text with Smart Clipboard Management**
+**Transform your voice into text, anywhere, anytime.**
 
-STT Clippy is a desktop application that allows you to activate speech-to-text from anywhere on your desktop via a global hotkey. The transcribed text is then either pasted at the cursor position and/or saved to your clipboard. The application also supports a sophisticated clipboard management system with a buffer of multiple recent clips.
+STT Clippy is a powerful desktop application that converts speech to text with a simple hotkey press. Whether you're writing emails, taking notes, or coding, just press a key, speak, and watch your words appear instantly.
 
-## ✨ Features
+## 🎬 Demo Videos
 
-- **Global Hotkey Activation**: Trigger STT from any application with customizable hotkeys
-- **Speech-to-Text**: Real-time transcription with local and cloud options
-- **Smart Output**: Paste at cursor and/or copy to clipboard
-- **Clipboard History**: Multi-clipboard buffer with search and quick access
-- **Privacy First**: Local processing by default, no data sent to cloud unless explicitly enabled
-- **Cross-Platform**: Support for Linux, macOS, and Windows
-- **High Performance**: Optimized for low latency and minimal resource usage
+> **Coming Soon**: Video demonstrations of key features
+
+| Feature | Demo | Description |
+|---------|------|-------------|
+| **STT to Clipboard** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=E2_cI0sbckY) | Basic speech-to-text with clipboard integration |
+| **Instant Output** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=1ZcDpYB4nhQ) | Real-time text output as you speak |
+| **Session Recording** | 🎥 [Watch Demo](https://www.youtube.com/watch?v=M8skn5w5y7c) | Advanced recording sessions with voice commands |
+
+## ✨ Key Features
+
+**Voice activcated detection** - Automatically transcribe as you speak with configuration throgh voice commands 
+**Different modes** - Auto-copy to clipboard or paste directly where you're typing as you speak  
+**Voice Commands** - Control the application and enable differnt modes through voice commands
+**Session Recording** - Record named sessions of audio from a microphone or your system audio. Exports full audio, slience removed audio and broken out segments of speech. 
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- **Linux**: Ubuntu 20.04+, Debian 11+, Fedora 35+, or Arch Linux
-- **macOS**: macOS 11.0+ (Big Sur)
-- **Windows**: Windows 10 1903+ or Windows 11
-- **Hardware**: 4GB RAM minimum, 8GB recommended
-
-### Installation
-
-Note: Prebuilt installers are not published yet. Build and run from source for now.
-
-#### Build from source (all platforms)
+### 1. Install Rust
 ```bash
-# Prerequisites: Rust toolchain (https://rustup.rs/)
-git clone <this repo URL>
+# Install Rust toolchain (if you don't have it)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### 2. Clone and Build
+```bash
+git clone https://github.com/alecKarfonta/clipstty.git
 cd clipstty
-cargo build
+cargo build --release
 ```
 
-### First Run
-
-1. **Launch** the application
-2. **Grant Permissions**:
-   - Microphone access for audio capture
-   - Accessibility permissions for paste injection (platform-dependent)
-   - Clipboard access for clipboard management
-3. **Configure Hotkeys**: Default is `Ctrl+Alt+S` for STT activation
-4. **Test**: Press your hotkey and speak - the transcribed text should appear in your clipboard!
-
-### Local model setup (required for local STT)
-
-The local backend requires a Whisper model file and an environment variable pointing to it.
-
+### 3. Get a Speech Model (Optional for Local STT)
 ```bash
-# Example: download the base English model (adjust path as desired)
-mkdir -p ~/models/whisper
-curl -L -o ~/models/whisper/ggml-base.en.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin?download=true
-
-# Point the app to your model
-export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
-
-# Optional: tune performance
-export WHISPER_THREADS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)
-# macOS: enable Metal GPU acceleration (default on macOS)
-export WHISPER_USE_GPU=1
+# Download the default Whisper model (recommended)
+curl -L -o ggml-large-v3-turbo-q8_0.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin?download=true
 ```
 
-### Run the CLI prototype (copies transcripts to clipboard)
-
+### 4. Run STT Clippy
 ```bash
-export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
+# Basic STT to clipboard
 cargo run --bin stt_to_clipboard
-```
 
-This continuously listens for speech, transcribes detected segments, and copies the result to your clipboard.
-
-### Run the main app (hotkey-activated, creates a config file on first run)
-
-```bash
-export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
+# Or run the full app with hotkeys
 cargo run --bin stt-clippy --features local-stt
 ```
 
-On first run, a default `stt-clippy.toml` will be created in your user config directory. Edit it to adjust audio, hotkeys, and output behavior.
+### 5. Test It Out
+1. Press `Ctrl+Alt+S` (default hotkey)
+2. Speak clearly into your microphone
+3. Your text appears in the clipboard! 🎉
 
-### Environment variables
+> **Need Help?** Check the [troubleshooting section](#-troubleshooting) below.
 
-- `WHISPER_MODEL_PATH` (required for local backend): absolute path to a Whisper model `.bin` file
-- `WHISPER_THREADS` (optional): number of CPU threads to use
-- `WHISPER_USE_GPU` (optional, macOS default = on): `1` to enable GPU, `0` to force CPU
-
-## 🎯 Usage
+## 🎯 Usage Examples
 
 ### Basic Speech-to-Text
+```bash
+# Start listening and copy to clipboard
+cargo run --bin stt_to_clipboard
+```
+Press `Ctrl+C` to stop. Speak clearly and your text will be copied to clipboard automatically.
 
-1. **Press the hotkey** (`Ctrl+Alt+S` by default) from any application
-2. **Speak clearly** - you'll see audio level indicators
-3. **Wait for completion** - the app will automatically detect when you stop speaking
-4. **Text appears** in your clipboard and/or pasted at the cursor
+### Voice Commands
+```bash
+# Test voice commands with real audio sessions
+cargo run --bin test_recording_commands
+```
+Try saying:
+- "Start recording session"
+- "Stop recording"
+- "Show status"
+- "Enable debug mode"
 
-### Clipboard History
+### Advanced Configuration
+```bash
+# Use a different Whisper model
+export WHISPER_MODEL_PATH=~/models/whisper/ggml-base.en.bin
 
-- **Open History**: Press `Ctrl+Alt+H` to open the clipboard history palette
-- **Search**: Type to search through your clipboard history
-- **Quick Access**: Use `Alt+1` through `Alt+9` for recent clips
-- **Manage**: Pin important clips, delete old ones, or export your history
+# Optimize performance
+export WHISPER_THREADS=8
+export WHISPER_USE_GPU=1  # Enable GPU acceleration (macOS)
 
-### Advanced Features
+cargo run --bin stt_to_clipboard
+```
 
-- **Push-to-Talk**: Hold the hotkey while speaking
-- **Toggle Mode**: Press once to start, press again to stop
-- **Language Detection**: Automatic language detection or manual selection
-- **Model Selection**: Choose between different STT model sizes for speed vs. accuracy
+## 🔧 Development & Testing
 
-## ⚙️ Configuration
+<details>
+<summary><strong>Click to expand testing utilities</strong></summary>
 
-### Audio Settings
+### Voice Command Testing
+```bash
+# Test voice commands with real audio sessions
+cargo run --bin test_recording_commands
+
+# Test session manager functionality  
+cargo run --bin test_enhanced_session_manager
+
+# Integration testing for recording pipeline
+cargo run --bin test_recording_integration
+```
+
+### Audio & TTS Testing
+```bash
+# Test basic TTS functionality
+cargo run --bin test_tts_simple
+
+# Advanced TTS debugging
+cargo run --bin debug_tts
+
+# Voice command test recorder
+cargo run --bin test_recorder
+```
+
+### Debug Tools
+```bash
+# Debug audio recording with session management
+cargo run --bin debug_audio_recording
+```
+
+</details>
+
+## 📖 Documentation & Configuration
+
+<details>
+<summary><strong>Click to expand advanced configuration</strong></summary>
+
+### Environment Variables
+- `WHISPER_MODEL_PATH`: Path to Whisper model file (default: `ggml-large-v3-turbo-q8_0.bin`)
+- `WHISPER_THREADS`: Number of CPU threads to use
+- `WHISPER_USE_GPU`: Enable GPU acceleration (`1` for on, `0` for off)
+
+### Configuration File
+On first run, `stt-clippy.toml` is created in your user config directory:
 
 ```toml
 [audio]
-sample_rate = 16000          # Audio sample rate
-vad_sensitivity = 0.5        # Voice activity detection sensitivity
-vad_timeout = 2000           # Timeout in milliseconds
-noise_reduction = true        # Enable noise reduction
-```
+sample_rate = 16000
+vad_sensitivity = 0.5
+vad_timeout = 2000
 
-### STT Settings
-
-```toml
 [stt]
-backend = "local"            # local, cloud, or hybrid
-model_size = "base"          # tiny, base, small, medium, large
-language = "auto"            # Language or "auto" for detection
-enable_punctuation = true    # Add punctuation automatically
-```
+backend = "local"
+model_size = "base"
+language = "auto"
 
-### Hotkey Settings
-
-```toml
 [hotkeys]
-primary = "Ctrl+Alt+S"       # Main STT activation
-history_palette = "Ctrl+Alt+H" # Open clipboard history
-quick_access = ["Alt+1", "Alt+2", "Alt+3"] # Quick clip access
+primary = "Ctrl+Alt+S"
+history_palette = "Ctrl+Alt+H"
 ```
 
-### Privacy Settings
+### Available Voice Commands (50+)
+- **Recording**: "start recording", "stop recording", "pause recording"
+- **STT**: "switch to whisper model", "set language to english"
+- **System**: "show status", "enable debug mode", "restart service"
+- **Transcripts**: "search transcripts", "export as text", "show recent"
 
-```toml
-[privacy]
-data_retention = "30d"       # How long to keep clipboard history
-auto_expiry = true           # Automatically expire old clips
-sensitive_apps = []          # Apps to exclude from clipboard access
-encrypt_storage = true       # Encrypt clipboard history at rest
-```
+</details>
 
-## 🏗️ Development
+## 🛠️ Troubleshooting
 
-### Project Structure
+### Common Issues
 
-```
-stt-clippy/
-├── src/                     # Source code
-│   ├── core/               # Core application logic
-│   ├── services/           # Service implementations
-│   ├── platform/           # Platform-specific code
-│   └── ui/                 # User interface
-├── docs/                   # Documentation
-├── tests/                  # Test suite
-├── scripts/                # Build and deployment scripts
-└── resources/              # Application resources
-```
+**No audio detected?**
+- Check microphone permissions
+- Verify your default audio input device
+- Try adjusting `vad_sensitivity` in config
 
-### Building from Source
+**Model not found?**
+- Download the Whisper model (see Quick Start step 3)
+- Check `WHISPER_MODEL_PATH` environment variable
 
-#### Prerequisites
+**Hotkey not working?**
+- Grant accessibility permissions (macOS/Linux)
+- Check for hotkey conflicts with other apps
+- Try a different hotkey combination in config
 
-- **Rust**: 1.70+ (install from [rustup.rs](https://rustup.rs/))
-- **Node.js**: 18+ (for UI development)
-- **Platform Dependencies**:
-  - **Linux**: `libpulse-dev`, `libasound2-dev`, `libx11-dev`
-  - **macOS**: Xcode Command Line Tools
-  - **Windows**: Visual Studio Build Tools
+**Performance issues?**
+- Use a smaller model (`ggml-base.en.bin`)
+- Adjust `WHISPER_THREADS` to match your CPU cores
+- Enable GPU acceleration with `WHISPER_USE_GPU=1`
 
-#### Build Commands
+## 🤝 Contributing
 
-```bash
-# Clone the repository
-git clone https://github.com/your-org/stt-clippy.git
-cd stt-clippy
-
-# Install dependencies
-cargo build --release
-
-# Run tests
-cargo test
-
-# Build for specific platform
-cargo build --release --target x86_64-unknown-linux-gnu
-cargo build --release --target x86_64-apple-darwin
-cargo build --release --target x86_64-pc-windows-msvc
-```
-
-### Development Workflow
+We welcome contributions! Here's how to get started:
 
 1. **Fork** the repository
 2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
 3. **Make** your changes and add tests
-4. **Run** the test suite: `cargo test`
-5. **Commit** your changes: `git commit -m 'Add amazing feature'`
-6. **Push** to the branch: `git push origin feature/amazing-feature`
-7. **Open** a Pull Request
+4. **Run** tests: `cargo test`
+5. **Submit** a Pull Request
 
-### Testing
-
+### Development Setup
 ```bash
-# Run all tests
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/clipstty.git
+cd clipstty
+
+# Build and test
+cargo build
 cargo test
-
-# Run tests with coverage
-cargo tarpaulin
-
-# Run integration tests
-cargo test --test integration
-
-# Run performance benchmarks
-cargo bench
 ```
+
+### Platform Dependencies
+- **Linux**: `libpulse-dev`, `libasound2-dev`, `libx11-dev`
+- **macOS**: Xcode Command Line Tools  
+- **Windows**: Visual Studio Build Tools
 
 ## 📚 Documentation
 
-- **[Development Roadmap](DEVELOPMENT_ROADMAP.md)**: Detailed development phases and milestones
-- **[Architecture](ARCHITECTURE.md)**: System architecture and component design
-- **[Technical Requirements](TECHNICAL_REQUIREMENTS.md)**: Detailed technical specifications
-- **[API Reference](docs/api.md)**: Developer API documentation
+- **[Enhanced Session Outputs](ENHANCED_SESSION_OUTPUTS.md)**: Voice command session management
+- **[Test Recording Guide](TEST_RECORDING_GUIDE.md)**: Guide for testing voice commands
 - **[Contributing Guide](CONTRIBUTING.md)**: How to contribute to the project
-
-## 🤝 Contributing
-
-We welcome contributions from the community! Here are some ways you can help:
-
-- **🐛 Report Bugs**: Use the [issue tracker](https://github.com/your-org/stt-clippy/issues)
-- **💡 Suggest Features**: Open a feature request issue
-- **📝 Improve Documentation**: Help make the docs better
-- **🔧 Fix Issues**: Pick up an issue and submit a PR
-- **🧪 Add Tests**: Help improve test coverage
-- **🌍 Localization**: Help translate the application
-
-### Contribution Guidelines
-
-- Follow the existing code style and conventions
-- Add tests for new functionality
-- Update documentation as needed
-- Ensure all tests pass before submitting
-- Use conventional commit messages
 
 ## 📄 License
 
@@ -259,32 +227,35 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🙏 Acknowledgments
 
 - **OpenAI Whisper**: Speech recognition models
-- **Faster-Whisper**: Efficient STT implementation
+- **Faster-Whisper**: Efficient STT implementation  
 - **Silero VAD**: Voice activity detection
-- **Tauri**: Cross-platform desktop framework
 - **Community Contributors**: Everyone who helps improve STT Clippy
 
 ## 📞 Support
 
-- **GitHub Issues**: [Bug reports and feature requests](https://github.com/your-org/stt-clippy/issues)
-- **Discussions**: [Community discussions](https://github.com/your-org/stt-clippy/discussions)
-- **Wiki**: [User guides and troubleshooting](https://github.com/your-org/stt-clippy/wiki)
-- **Email**: support@stt-clippy.com
+- **GitHub Issues**: [Bug reports and feature requests](https://github.com/alecKarfonta/clipstty/issues)
+- **Discussions**: [Community discussions](https://github.com/alecKarfonta/clipstty/discussions)
 
 ## 🔮 Roadmap
 
-See our [Development Roadmap](DEVELOPMENT_ROADMAP.md) for detailed information about upcoming features and development phases.
+### ✅ Completed (Phase 1)
+- Enhanced voice command system with 50+ commands
+- Real audio session integration  
+- Advanced session management with metadata tracking
+- Comprehensive testing and debugging tools
 
-### Upcoming Features
+### 🚧 In Progress (Phase 2)
+- LLM integration for "Ask Grok" style voice commands
+- Advanced STT model switching
+- Improved clipboard history management
 
-- **Phase 1**: Basic STT functionality and clipboard integration
-- **Phase 2**: Paste at cursor capability
-- **Phase 3**: Advanced clipboard history management
-- **Phase 4**: Cross-platform optimization
-- **Phase 5**: Advanced features and plugins
+### 📋 Planned (Phase 3+)
+- Paste at cursor capability
+- Cross-platform UI improvements
+- Plugin system and automation features
 
 ---
 
-**Made with ❤️ by the STT Clippy Team**
+**Made with ❤️ by the STT Clippy Team (Me and Claude)**
 
 *Transform your voice into text, anywhere, anytime.*
