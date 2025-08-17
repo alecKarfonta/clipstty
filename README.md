@@ -10,6 +10,8 @@ STT Clippy is a desktop application that allows you to activate speech-to-text f
 - **Speech-to-Text**: Real-time transcription with local and cloud options
 - **Smart Output**: Paste at cursor and/or copy to clipboard
 - **Clipboard History**: Multi-clipboard buffer with search and quick access
+- **Enhanced Voice Commands**: Comprehensive voice command system with real audio session integration
+- **Audio Session Management**: Advanced recording session management with metadata tracking
 - **Privacy First**: Local processing by default, no data sent to cloud unless explicitly enabled
 - **Cross-Platform**: Support for Linux, macOS, and Windows
 - **High Performance**: Optimized for low latency and minimal resource usage
@@ -98,6 +100,26 @@ An enhanced audio recording tool for testing voice commands with:
 - Support for recording multiple test samples
 - Real-time audio level monitoring
 
+#### Enhanced Voice Command Testing
+```bash
+# Test voice commands with real audio session integration
+cargo run --bin test_recording_commands
+
+# Test enhanced session manager functionality
+cargo run --bin test_enhanced_session_manager
+
+# Integration testing for recording system
+cargo run --bin test_recording_integration
+
+# Debug audio recording with session management
+cargo run --bin debug_audio_recording
+```
+These enhanced testing tools provide:
+- **Real Audio Session Integration**: Test voice commands with actual recording sessions
+- **Session Management Testing**: Verify session creation, tracking, and cleanup
+- **Integration Testing**: End-to-end testing of the recording pipeline
+- **Debug Audio Sessions**: Comprehensive audio session debugging with metadata tracking
+
 #### TTS Debugging Tools
 ```bash
 # Simple TTS test (basic functionality)
@@ -151,6 +173,12 @@ On first run, a default `stt-clippy.toml` will be created in your user config di
 - **Toggle Mode**: Press once to start, press again to stop
 - **Language Detection**: Automatic language detection or manual selection
 - **Model Selection**: Choose between different STT model sizes for speed vs. accuracy
+- **Voice Commands**: Comprehensive voice command system with over 50+ commands including:
+  - Audio recording session management ("start recording", "stop recording")
+  - STT configuration ("switch to whisper model", "set language to english")
+  - System controls ("show status", "enable debug mode")
+  - Transcript management ("search transcripts", "export as text")
+- **Session Management**: Advanced audio session tracking with metadata, duration, and transcript analytics
 
 ## ⚙️ Configuration
 
@@ -201,15 +229,23 @@ encrypt_storage = true       # Encrypt clipboard history at rest
 clipstty/
 ├── src/                     # Source code
 │   ├── bin/                # Binary executables
-│   │   ├── stt_to_clipboard.rs    # Main STT CLI tool
-│   │   ├── test_recorder.rs       # Voice command test recorder
-│   │   ├── debug_tts.rs           # TTS debugging utility
-│   │   └── test_tts_simple.rs     # Simple TTS test tool
+│   │   ├── stt_to_clipboard.rs           # Main STT CLI tool
+│   │   ├── test_recorder.rs              # Voice command test recorder
+│   │   ├── debug_tts.rs                  # TTS debugging utility
+│   │   ├── test_tts_simple.rs            # Simple TTS test tool
+│   │   ├── test_recording_commands.rs    # Voice command integration testing
+│   │   ├── test_enhanced_session_manager.rs # Session manager testing
+│   │   ├── test_recording_integration.rs # Recording pipeline integration tests
+│   │   └── debug_audio_recording.rs      # Audio session debugging utility
 │   ├── core/               # Core application logic
 │   ├── services/           # Service implementations
+│   │   ├── voice_commands/ # Enhanced voice command system
+│   │   ├── audio_session_manager.rs # Advanced session management
+│   │   └── ...            # Other services
 │   ├── platform/           # Platform-specific code
 │   └── ui/                 # User interface
 ├── test_recordings/        # Audio test files directory
+├── debug_audio_sessions/   # Debug session storage with metadata
 ├── tests/                  # Test suite
 ├── scripts/                # Build and deployment scripts
 └── docs/                   # Documentation files
@@ -279,6 +315,18 @@ The project includes specialized testing utilities for manual testing and debugg
 # Test voice command recording with audio feedback
 cargo run --bin test_recorder
 
+# Test enhanced voice command system with real audio sessions
+cargo run --bin test_recording_commands
+
+# Test session manager functionality
+cargo run --bin test_enhanced_session_manager
+
+# Integration testing for recording pipeline
+cargo run --bin test_recording_integration
+
+# Debug audio recording with session management
+cargo run --bin debug_audio_recording
+
 # Test basic TTS functionality
 cargo run --bin test_tts_simple
 
@@ -290,15 +338,19 @@ cargo run --bin stt_to_clipboard
 ```
 
 These tools are particularly useful for:
-- **Voice Command Development**: Record test audio samples with `test_recorder`
+- **Voice Command Development**: Record test audio samples and test voice command integration
+- **Session Management Testing**: Verify audio session creation, tracking, and cleanup
+- **Integration Testing**: End-to-end testing of the recording and voice command pipeline
 - **TTS Integration Testing**: Verify text-to-speech functionality with the TTS debug tools
-- **Audio Pipeline Testing**: Test the complete STT pipeline with `stt_to_clipboard`
+- **Audio Pipeline Testing**: Test the complete STT pipeline with clipboard integration
 
 ## 📚 Documentation
 
 - **[Development Roadmap](DEVELOPMENT_ROADMAP.md)**: Detailed development phases and milestones
 - **[Architecture](ARCHITECTURE.md)**: System architecture and component design
 - **[Technical Requirements](TECHNICAL_REQUIREMENTS.md)**: Detailed technical specifications
+- **[Enhanced Session Outputs](ENHANCED_SESSION_OUTPUTS.md)**: Voice command session management documentation
+- **[Test Recording Guide](TEST_RECORDING_GUIDE.md)**: Comprehensive guide for testing voice commands
 - **[API Reference](docs/api.md)**: Developer API documentation
 - **[Contributing Guide](CONTRIBUTING.md)**: How to contribute to the project
 
@@ -346,11 +398,19 @@ See our [Development Roadmap](DEVELOPMENT_ROADMAP.md) for detailed information a
 
 ### Upcoming Features
 
-- **Phase 1**: Basic STT functionality and clipboard integration
-- **Phase 2**: Paste at cursor capability
-- **Phase 3**: Advanced clipboard history management
-- **Phase 4**: Cross-platform optimization
-- **Phase 5**: Advanced features and plugins
+- **Phase 1**: ✅ Enhanced voice commands with real audio session integration
+- **Phase 2**: Advanced STT model integration and LLM voice commands
+- **Phase 3**: Paste at cursor capability and advanced clipboard management
+- **Phase 4**: Cross-platform optimization and UI improvements
+- **Phase 5**: Plugin system and advanced automation features
+
+### Recent Improvements
+
+- ✅ **Enhanced Voice Command System**: Comprehensive voice command framework with 50+ commands
+- ✅ **Real Audio Session Integration**: Voice commands now interact with actual recording sessions
+- ✅ **Advanced Session Management**: Session tracking with metadata, duration, and transcript analytics
+- ✅ **Comprehensive Testing Suite**: Multiple testing utilities for voice commands and audio sessions
+- ✅ **Debug and Development Tools**: Enhanced debugging capabilities for audio session management
 
 ---
 
