@@ -36,3 +36,9 @@ Transcription:  language to English.
 2025-08-16T18:10:09.480114Z  INFO runner: Voice command executed: Language set to to
 
 And then set the language to "to"?
+
+
+
+- [ ] At the end of a session we should save several different ouputs. First should be the raw audio of the entire session, next should be the entire session but with silence cut out, next we should output a folder full of each individial segment of audio in its own file also create a metadatafile describing the audio segments
+
+- [ ] voice command where I can say something like "Ask Grok" and then it will send my request to the Grok LLM and then read back my response using TTS. First implement a generic llm router that can conncet to any LLM provider that could be any popular public model or a locally running OpenAPI spec model.
